@@ -407,7 +407,7 @@ static void scene_mycelium(void)
 static const float MO_P[9][2] = {{0.0f, 0.0f},   {-0.10f, 0.12f}, {-0.06f, 0.30f}, {0.08f, 0.46f}, {0.30f, 0.54f},
                                  {0.55f, 0.50f}, {0.78f, 0.36f},  {0.95f, 0.14f},  {1.0f, 0.0f}};   /* half a leaf: (along, across) */
 
-static float mo_w(float u)                      /* the leaf's half-width at u, 0.08 .. 1 */
+static float monstera_half_width(float u)                      /* the leaf's half-width at u, 0.08 .. 1 */
 {
     int i;
     for (i = 4; i < 9; i++)
@@ -448,7 +448,7 @@ static void mo_leaf(float bx, float by, float a, float len, uint16_t body, uint1
     ln(ftoi(bx), ftoi(by), ftoi(bx + ca * len * 0.96f), ftoi(by + sa * len * 0.96f), rib, 14);
     for (s = -1; s <= 1; s += 2)                /* the cuts of a Monstera: from the edge towards the rib */
         for (k = 0; k < 3; k++) {
-            float u = 0.34f + 0.22f * (float)k, w = mo_w(u) * len, u2 = (u + 0.08f) * len, v2 = 0.2f * len * (float)s;
+            float u = 0.34f + 0.22f * (float)k, w = monstera_half_width(u) * len, u2 = (u + 0.08f) * len, v2 = 0.2f * len * (float)s;
             float ex = bx + ca * u * len - sa * w * (float)s, ey = by + sa * u * len + ca * w * (float)s;
             int32_t ix = ftoi(bx + ca * u2 - sa * v2), iy = ftoi(by + sa * u2 + ca * v2);
             ln(ftoi(ex), ftoi(ey), ix, iy, wall, 16);
