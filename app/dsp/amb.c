@@ -13,17 +13,17 @@
 
 const char *const EN_NOTE_NAME[12] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
 const char *const EN_MODE_NAME[EN_NMODES] = {"Ionian", "Dorian", "Phrygian", "Lydian", "Mixolyd.", "Aeolian",
-                                             "Pent maj", "Pent min"};
+                                             "Pent maj", "Pent min", "Maj7"};
 #define B(a, b, c, d, e, f, g) (1u << (a) | 1u << (b) | 1u << (c) | 1u << (d) | 1u << (e) | 1u << (f) | 1u << (g))
 const uint16_t EN_MODE_POOL[EN_NMODES] = {
     B(0, 2, 4, 5, 7, 9, 11), B(0, 2, 3, 5, 7, 9, 10), B(0, 1, 3, 5, 7, 8, 10), B(0, 2, 4, 6, 7, 9, 11),
-    B(0, 2, 4, 5, 7, 9, 10), B(0, 2, 3, 5, 7, 8, 10), B(0, 2, 4, 7, 9, 9, 9),  B(0, 3, 5, 7, 10, 10, 10)};
+    B(0, 2, 4, 5, 7, 9, 10), B(0, 2, 3, 5, 7, 8, 10), B(0, 2, 4, 7, 9, 9, 9),  B(0, 3, 5, 7, 10, 10, 10), B(0, 4, 7, 11, 11, 11, 11)};
 #undef B
 const uint8_t EN_LOOP_LEN[EN_NLOOP] = {13, 17, 23, 29};
 const uint8_t EN_DRUM_N[EN_NDRUM] = {16, 12, 7};
 
 static const en_param_t PARAMS[P_NPARAMS] = {
-    {"Pad", 0, 100, 60},      {"Bells", 0, 100, 65},    {"Bass", 0, 100, 45},     {"Pulse", 0, 100, 40},
+    {"Pad", 0, 100, 60},      {"Bells", 0, 100, 65},    {"Bass", 0, 100, 45},     {"Pulse", 0, 100, 0},
     {"Density", 0, 100, 40},  {"Evolve", 0, 100, 35},   {"Drift", 0, 100, 25},    {"Hits", 0, 100, 35},
     {"Echo", 0, 100, 45},     {"Echo time", 0, 5, 3},   {"Reverb", 0, 100, 65},   {"Size", 0, 100, 80},
     {"Bright", 0, 100, 40},   {"Swell", 0, 100, 60},    {"Bell tone", 0, 100, 50}, {"Motion", 0, 100, 50},
@@ -31,25 +31,35 @@ static const en_param_t PARAMS[P_NPARAMS] = {
     {"Mode", 0, EN_NMODES - 1, 1}, {"Bell oct", -2, 2, 0}, {"Pad tone", 0, 1, 0},
     {"Bass oct", -1, 1, 0},   {"Glide", 0, 100, 20},    {"Fifth", 0, 100, 35},
     {"Swing", 0, 100, 0},     {"Hats", 0, 100, 50},
+    {"Granules", 0, 100, 0},  {"Grain size", 0, 100, 40}, {"Reverse", 0, 100, 0}, {"Random", 0, 100, 0},
 };
 const en_param_t *en_param_info(int i) { return (i >= 0 && i < P_NPARAMS) ? &PARAMS[i] : &PARAMS[0]; }
 
 /* the pieces: eight recipes for the whole garden (the FM-1's PRESETS, the web app's cards). Tune and
- * MIDI out are taken from here by neither: they belong to the player, not the piece */
+ * MIDI out are taken from here by neither: they belong to the player, not the piece.
+ * Pieces 0..3 are made for the Pocket Scion's presets (EN_NSCION_BED): its notes ring over a quiet bed, so the
+ * loops' Density is 0 (the Bells level is the Scion voices' level) and the pulse is off. Pieces 4..7 keep the
+ * music of AMB-1's (their loops and pulse go on) and the Scion's notes ring over it too. */
 /*                     Pad Bel Bas Pul  Den Evo Dri Hit  Ech ET Rev Siz  Bri Swe Ton Mot  Tun MI Tem Rt Md Oc  PT  BO Gli Fif  Swi Hat
  * (PT: the pad's colour, 0 Rhodes, 1 Voices; BO: the bass's octave) */
 static const struct {
     const char *name;
     int8_t v[P_NPARAMS];
 } PIECES[EN_NPIECES] = {
-    {"Garden",       {60, 65, 45, 40, 40, 35, 25, 35, 45, 3, 65, 80, 40, 60, 50, 50, 0, 1, 72, 2, 1, 0, 0, 0, 20, 35, 0, 50}},
-    {"Departures",   {35, 75, 0, 0, 35, 30, 40, 0, 30, 3, 70, 85, 20, 55, 5, 40, 0, 1, 60, 1, 0, -1, 0, 0, 30, 25, 0, 40}},
-    {"Voices",       {85, 0, 25, 0, 30, 30, 50, 0, 20, 5, 80, 90, 67, 70, 30, 55, 0, 1, 56, 5, 5, 0, 1, -1, 45, 30, 0, 40}},
-    {"Afternoon",    {50, 65, 35, 25, 55, 45, 20, 30, 50, 2, 60, 75, 60, 50, 60, 55, 0, 1, 84, 7, 3, 0, 0, 0, 15, 40, 15, 65}},
-    {"Night Bus",    {45, 55, 55, 60, 45, 50, 15, 55, 55, 1, 55, 70, 35, 40, 75, 70, 0, 1, 96, 9, 5, 0, 0, 0, 10, 45, 30, 70}},
+    /* Scion 1, Secret Garden: D minor pentatonic. A Japanese garden: soft, round bells */
+    {"Garden",       {45, 70, 20, 0, 0, 25, 35, 0, 40, 3, 65, 80, 40, 60, 35, 50, 0, 1, 60, 2, 7, 0, 0, 0, 20, 30, 0, 50}},
+    /* Scion 2, Fungal Waves: A major pentatonic. Glassy, branching, high */
+    {"Mycelium",     {40, 70, 15, 0, 0, 30, 40, 0, 50, 4, 75, 85, 55, 70, 70, 70, 0, 1, 56, 9, 6, 0, 1, 0, 30, 25, 0, 50}},
+    /* Scion 3, Treebeard's Koto: F major 7. Warm and wooden, the seasons turn on Bright */
+    {"Flora",        {55, 65, 25, 0, 0, 30, 30, 0, 45, 3, 70, 85, 15, 60, 25, 55, 0, 1, 52, 5, 8, 0, 0, 0, 25, 30, 0, 50}},
+    /* Scion 4, Soil Circuits: chromatic. Dull, short drops over a deep bed */
+    {"Earth",        {30, 80, 40, 0, 0, 20, 45, 0, 30, 2, 55, 70, 20, 50, 15, 40, 0, 1, 48, 2, 7, 0, 0, -1, 40, 20, 0, 50}},
+    /* the music of AMB-1's Departures, Voices, Afternoon and Shoreline, for the four scenes of the sea, the river, the storm
+     * and the beach; the Scion's notes ring over it */
+    {"Posidonia",    {35, 75, 0, 0, 35, 30, 40, 0, 30, 3, 70, 85, 20, 55, 5, 40, 0, 1, 60, 1, 0, -1, 0, 0, 30, 25, 0, 40}},
+    {"Night",        {85, 0, 25, 0, 30, 30, 50, 0, 20, 5, 80, 90, 67, 70, 30, 55, 0, 1, 56, 5, 5, 0, 1, -1, 45, 30, 0, 40}},
+    {"Lighthouse",   {50, 65, 35, 0, 55, 45, 20, 30, 50, 2, 60, 75, 60, 50, 60, 55, 0, 1, 84, 7, 3, 0, 0, 0, 15, 40, 15, 65}},
     {"Shoreline",    {40, 60, 30, 0, 30, 40, 40, 0, 85, 4, 55, 95, 30, 80, 0, 85, 0, 1, 64, 4, 6, 0, 0, 0, 40, 20, 0, 30}},
-    {"Glass",        {35, 80, 30, 20, 60, 55, 25, 25, 45, 2, 65, 80, 55, 45, 90, 50, 0, 1, 76, 3, 7, 1, 0, 1, 10, 30, 10, 85}},
-    {"Tides",        {55, 60, 40, 35, 45, 75, 10, 40, 50, 3, 65, 85, 60, 60, 55, 95, 0, 1, 70, 10, 4, 0, 1, 0, 25, 55, 10, 50}},
 };
 
 const char *en_piece_name(int i) { return PIECES[(unsigned)i < EN_NPIECES ? i : 0].name; }
@@ -125,6 +135,19 @@ void en_param_text(int i, int v, char *b)
     }
     if (i == P_SWING) {                          /* as a swing percentage: 50% (straight) .. 75% */
         b = itoa_s(50 + v / 4, b);
+        *b++ = '%';
+        *b = 0;
+        return;
+    }
+    if (i == P_GSIZE) {                          /* the grains' length: 25 ms .. 250 ms */
+        b = itoa_s((int)(25.0f * fm_exp2f((float)v * 0.0332f) + 0.5f), b);
+        *b++ = 'm';
+        *b++ = 's';
+        *b = 0;
+        return;
+    }
+    if (i == P_GREV || i == P_GRAND) {
+        b = itoa_s(v, b);
         *b++ = '%';
         *b = 0;
         return;
@@ -274,7 +297,7 @@ const char *en_chord_name(const int *pcs, int n, char *buf)
 }
 
 /* ------------------------------------------------------------ commands --- */
-enum { C_SET, C_POOL, C_PLAY, C_NEXT, C_FREEZE, C_SEED, C_PANIC, C_CLOCK, C_REGROW };
+enum { C_SET, C_POOL, C_PLAY, C_NEXT, C_FREEZE, C_SEED, C_PANIC, C_CLOCK, C_REGROW, C_SCION, C_NOTE, C_MOD };
 #define QN 64u
 static uint32_t q[QN];
 static volatile uint32_t q_w, q_r;
@@ -296,6 +319,18 @@ void en_seed(uint32_t s) { post(C_SEED, 0, (int)(s & 0xFFFFu)); }
 void en_panic(void) { post(C_PANIC, 0, 0); }
 void en_clock(int msg) { post(C_CLOCK, msg, 0); }
 void en_regrow(void) { post(C_REGROW, 0, 0); }
+void en_scion(int preset) { post(C_SCION, preset + 1, 0); }
+void en_note(int ch, int note, int vel) { post(C_NOTE, ch, (note & 0x7F) | (vel & 0x7F) << 8); }
+void en_mod(int voice, int dest, int val, int amount)
+{
+    float m = ((float)val - 64.0f) * (1.0f / 63.5f) * (float)amount * 0.01f;
+    m = m < -1.0f ? -1.0f : m > 1.0f ? 1.0f : m;
+    if (voice >= 0 && voice < EN_NSCION && dest > EN_D_OFF && dest < EN_NDEST)
+        post(C_MOD, voice | dest << 3, (int)(m * 1000.0f));
+}
+void en_cc(int voice, int val) { en_mod(voice, EN_D_BRIGHT, val, 100); }
+const char *const EN_DEST_NAME[EN_NDEST] = {"Off",   "Bright",  "Level", "Decay", "Pan",  "Pitch", "Echo",  "Reverb",
+                                            "Grains", "GrSize", "GrRev", "GrRand", "Pad", "Bass",  "Bells", "Tone"};
 
 /* -------------------------------------------------------------- state --- */
 volatile uint8_t en_playing, en_frozen, en_ext;
@@ -312,6 +347,8 @@ volatile float en_arc;
 volatile uint8_t en_pulse_rest;
 volatile uint8_t en_pad_note[EN_NPAD];
 volatile float en_pad_amp[EN_NPAD];
+volatile float en_sc_glow[EN_NSCION];
+volatile uint8_t en_sc_count[EN_NSCION], en_sc_note[EN_NSCION];
 
 static int16_t par[P_NPARAMS];
 static uint32_t pool = 0xAADu;                  /* Ionian until told */
@@ -529,7 +566,7 @@ static struct {
 static float bass_vol, glide_k = 1.0f / (0.25f * EN_SR);      /* glide_k: 1 / the glide's time in samples */
 
 /* ----------------------------------------------------------------- bells --- */
-#define NBELL 6
+#define NBELL 10                              /* the loops' bells and the Scion's share them */
 typedef struct {
     float cph, mph, cinc, minc, amp, adec, idx, idec, att, gl, gr;
     int32_t wait;
@@ -735,6 +772,11 @@ static void loop_pass(int l)                    /* the end of a pass: grow, prun
 static const float LOOP_IDX[EN_NLOOP] = {1.0f, 0.55f, 1.5f, 0.8f}, LOOP_DEC[EN_NLOOP] = {1.0f, 1.35f, 0.75f, 1.6f};
 static const int8_t LOOP_RAT[EN_NLOOP] = {0, 0, 1, -1};
 
+static void bell_off(const bell_t *v)           /* MIDI out: a loop's bell on channel 2, a Scion voice on its own */
+{
+    midi(v->loop >= 16 ? 0x80u | (uint32_t)(v->loop & 15) : 0x81u, v->note, 0);
+}
+
 static void bell_voice(int l, int n, float vel, int32_t wait)
 {
     int i, best = 0, ri;
@@ -749,7 +791,7 @@ static void bell_voice(int l, int n, float vel, int32_t wait)
     }
     v = &bell[best];
     if (v->on)
-        midi(0x81, v->note, 0);
+        bell_off(v);
     v->on = 1;
     v->note = (uint8_t)n;
     v->loop = (uint8_t)l;
@@ -781,6 +823,84 @@ static void bell_ring(int l, int slot)
     bell_voice(l, n, vel, wait);
     if (n + 12 <= 103 && frand() < 0.08f + 0.12f * fm_maxf(arcm, 0.0f))
         bell_voice(l, n + 12, vel * 0.4f, wait + 300 + irand(2000));   /* now and then, its octave */
+}
+
+/* ------------------------------------------------------- Pocket Scion --- */
+/* A note from the Scion rings a bell of the same family as the loops' (two-operator FM), shaped by the preset
+ * playing and by the voice (MIDI channel): its own place in the stereo field and its own shade of bell, brighter
+ * or duller as its CC (71..75) says. The notes are played where they come (the Scion's octave settings are the
+ * player's); no scale is imposed. A bell lasts its natural time, so there is no note off. */
+static int8_t sc_preset = -1;                   /* the Scion preset playing, -1 none */
+static float sc_bright[EN_NSCION] = {0.5f, 0.5f, 0.5f, 0.5f, 0.5f};     /* each voice's tone (the CC map) */
+static float sc_level[EN_NSCION] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f};      /* its volume, a factor */
+static float sc_dec[EN_NSCION] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f};        /* the ring's length, a factor */
+static float sc_panm[EN_NSCION];                                        /* its place, added to its own (-1..1) */
+static float sc_pitch[EN_NSCION];                                       /* its pitch, in cents */
+static const float SC_PAN[EN_NSCION] = {-0.7f, -0.3f, 0.0f, 0.3f, 0.7f};
+static const int8_t SC_RAT[EN_NSCION] = {0, 0, 1, -1, 0};              /* a shade a voice, as the loops' */
+static const struct {
+    int8_t ratio;                               /* the modulator's ratio (RATIO[]) */
+    float dec, tone;                            /* the ring's length, as a factor; the tone, added to Bell tone */
+} SC_STYLE[EN_NSCION_PRESETS] = {
+    {1, 1.00f, 0.00f},                          /* Garden: round, koto-like */
+    {3, 0.80f, 0.10f},                          /* Mycelium: glassy, inharmonic */
+    {0, 1.40f, -0.10f},                         /* Flora: warm, wooden, long */
+    {0, 0.35f, -0.05f},                         /* Earth: dull and short, a drop */
+    {0, 1.60f, -0.15f},                         /* Posidonia: soft and long, under water */
+    {2, 1.00f, 0.05f},                          /* Night: glassy, a firefly */
+    {3, 1.50f, 0.15f},                          /* Lighthouse: a buoy's metal bell */
+    {1, 1.10f, 0.00f},                          /* Shoreline: warm and round */
+};
+
+static void scion_voice(int ch, int n, float vel)
+{
+    const int ps = sc_preset >= 0 && sc_preset < EN_NSCION_PRESETS ? sc_preset : 0;
+    int i, best = 0, ri;
+    float lo = 9.0f, t60, p, bt;
+    bell_t *v;
+    while (n > 108)
+        n -= 12;
+    while (n < 24)
+        n += 12;
+    for (i = 0; i < NBELL; i++) {               /* a free voice, or the quietest */
+        float a = bell[i].on ? bell[i].amp : -1.0f;
+        if (a < lo) {
+            lo = a;
+            best = i;
+        }
+    }
+    v = &bell[best];
+    if (v->on)
+        bell_off(v);
+    bt = fm_clampf(btone + SC_STYLE[ps].tone + 0.6f * (sc_bright[ch] - 0.5f), 0.0f, 1.0f);
+    ri = SC_STYLE[ps].ratio + SC_RAT[ch];
+    v->on = 1;
+    v->note = (uint8_t)n;
+    v->loop = (uint8_t)(16 + ch);
+    v->cph = v->mph = 0.0f;
+    v->cinc = mtof((float)n) * (1.0f / EN_SR) * (sc_pitch[ch] != 0.0f ? fm_exp2f(sc_pitch[ch] * (1.0f / 1200.0f)) : 1.0f);
+    v->minc = v->cinc * RATIO[ri < 0 ? 0 : ri > 4 ? 4 : ri];
+    v->amp = vel * sc_level[ch];
+    t60 = fm_clampf(4.2f - (float)(n - 60) * 0.06f, 1.6f, 5.0f) * SC_STYLE[ps].dec * sc_dec[ch];
+    v->adec = fm_expf(-6.9f / (t60 * EN_SR));
+    v->idx = (0.15f + 6.5f * bt * bt) * (0.6f + 0.4f * vel) * (1.0f / FM_TWO_PI);
+    v->idec = fm_expf(-6.9f / ((0.35f + 2.6f * bt) * fm_minf(SC_STYLE[ps].dec, 1.0f) * EN_SR));
+    v->att = 0.0f;
+    p = (fm_clampf(SC_PAN[ch] + sc_panm[ch], -1.0f, 1.0f) + 1.0f) * (FM_PI / 4.0f);
+    v->gl = fm_cosf(p);
+    v->gr = fm_sinf(p);
+    v->wait = irand(1300);                      /* a hand's looseness: up to 30 ms */
+    midi(0x90u | (uint32_t)ch, (uint32_t)n, (uint32_t)(vel * 127.0f));
+}
+
+static void scion_note(int ch, int note, int vel)
+{
+    if (ch < 0 || ch >= EN_NSCION || vel <= 0)
+        return;
+    scion_voice(ch, note, 0.3f + 0.7f * (float)vel * (1.0f / 127.0f));
+    en_sc_glow[ch] = 1.0f;
+    en_sc_note[ch] = (uint8_t)note;
+    en_sc_count[ch] = (uint8_t)(en_sc_count[ch] + 1u);
 }
 
 /* ---------------------------------------------------------------- pulse --- */
@@ -1028,7 +1148,7 @@ static void plate_init(void)
  * (the repeats fall in changing patterns, left and right), and now and then the second head slides to
  * another part of the loop, as a head moved by hand (the repeats bend a little in pitch on the way).
  * The Echoplex has a second tap, for the right. */
-#define TAPE_N 62000                             /* 5.6 s at 11.025 kHz */
+#define TAPE_N 46000                             /* 4.2 s at 11.025 kHz (it was 62000: the granulator's buffer has the room) */
 #define TAPE_SR 11025.0f
 static int16_t tape[TAPE_N] EN_POOL;
 static int tape_w, tape_ph;
@@ -1149,6 +1269,109 @@ static inline void echoes(float in, float *el, float *er, float *xl, float *xr)
     }
 }
 
+/* ----------------------------------------------------------- granulator --- */
+/* The garden's own sound (pad, bass, bells, the Scion's notes) is kept for a second and a half, a quarter of the time
+ * as the tape is, and played back in grains: short windowed pieces from the recent past, a few a second to a cloud.
+ * Granules is how many a second (0 is off), Size how long they are, Reverse the share played backwards, Random how
+ * far they stray: in time (when, how much), in where in the past they read, in pitch (an octave down, a fifth, an
+ * octave up) and in the field. The grains go on to the reverb with the rest; they are not fed back. */
+#define GN 15872                                 /* 1.44 s at 11.025 kHz */
+#define NGRAIN 8
+static int16_t gbuf[GN] EN_POOL;
+static int gw, gph;
+static float gacc, glp_l, glp_r;
+static struct {
+    float pos, inc, age, inv_len, gl, gr;
+    uint32_t len;
+    uint8_t on;
+} grain[NGRAIN];
+static float gr_rate, gr_len = 4410.0f, gr_rev, gr_rand, gr_t;
+static const float GR_PITCH[5] = {0.5f, 0.75f, 1.5f, 2.0f, 1.0f};
+
+static void gr_spawn(void)
+{
+    int i;
+    float pitch = 1.0f, lenb, lag_min, lag_max, lag, p, pan, norm;
+    uint32_t len;
+    for (i = 0; i < NGRAIN && grain[i].on; i++)
+        ;
+    if (i >= NGRAIN)
+        return;
+    if (frand() < gr_rand * 0.8f)
+        pitch = GR_PITCH[(int)(frand() * 4.99f)];
+    len = (uint32_t)(gr_len * (1.0f + (frand() - 0.5f) * gr_rand * 0.6f));
+    if (len < 200u)
+        len = 200u;
+    lenb = (float)len * 0.25f;                   /* the buffer's samples it covers, at pitch 1 */
+    lag_min = 200.0f + lenb * fm_maxf(pitch, 1.0f);                   /* a grain's length back at least (not a comb against the dry sound), and never overtaking the write head ... */
+    lag_max = (float)(GN - 16) - lenb * (1.0f + pitch);               /* ... nor fall off the oldest end (a reverse grain runs back) */
+    if (lag_max < lag_min)
+        lag_max = lag_min;
+    lag = lag_min + gr_rand * frand() * (lag_max - lag_min);
+    p = (float)gw - lag;
+    if (p < 0.0f)
+        p += (float)GN;
+    pan = (frand() * 2.0f - 1.0f) * (0.2f + 0.8f * gr_rand);
+    norm = fm_clampf(gr_rate * (float)len * (1.0f / EN_SR), 1.0f, 8.0f);     /* grains at once: keep the cloud's level */
+    grain[i].pos = p;
+    grain[i].inc = (frand() < gr_rev ? -0.25f : 0.25f) * pitch;
+    grain[i].age = 0.0f;
+    grain[i].len = len;
+    grain[i].inv_len = 1.0f / (float)len;
+    grain[i].gl = fm_cosf((pan + 1.0f) * (FM_PI / 4.0f)) * 1.1f / fm_sqrtf(norm);
+    grain[i].gr = fm_sinf((pan + 1.0f) * (FM_PI / 4.0f)) * 1.1f / fm_sqrtf(norm);
+    grain[i].on = 1;
+}
+
+/* one sample: the mono input into the buffer; the grains' stereo out */
+static inline void gran(float in, float *ol, float *orr)
+{
+    int i;
+    float l = 0.0f, r = 0.0f;
+    gacc += in;
+    if (++gph >= 4) {
+        gph = 0;
+        if (++gw >= GN)
+            gw = 0;
+        gbuf[gw] = s16(gacc * 0.25f);
+        gacc = 0.0f;
+    }
+    if (gr_rate > 0.0f) {
+        gr_t -= 1.0f;
+        if (gr_t <= 0.0f) {
+            gr_spawn();
+            gr_t += EN_SR / gr_rate * (1.0f + (frand() - 0.5f) * 1.6f * gr_rand);
+        }
+    }
+    for (i = 0; i < NGRAIN; i++) {
+        float t, w, a, b, f, v;
+        int k;
+        if (!grain[i].on)
+            continue;
+        t = grain[i].age * grain[i].inv_len;
+        w = 4.0f * t * (1.0f - t);               /* a parabola: up and down */
+        k = (int)grain[i].pos;
+        f = grain[i].pos - (float)k;
+        a = (float)gbuf[k];
+        b = (float)gbuf[k + 1 >= GN ? 0 : k + 1];
+        v = (a + (b - a) * f) * (1.0f / 12000.0f) * w;
+        l += v * grain[i].gl;
+        r += v * grain[i].gr;
+        grain[i].pos += grain[i].inc;
+        if (grain[i].pos >= (float)GN)
+            grain[i].pos -= (float)GN;
+        else if (grain[i].pos < 0.0f)
+            grain[i].pos += (float)GN;
+        grain[i].age += 1.0f;
+        if (grain[i].age >= (float)grain[i].len)
+            grain[i].on = 0;
+    }
+    glp_l += 0.5f * (l - glp_l);                 /* the buffer is quarter-rate: smooth the steps */
+    glp_r += 0.5f * (r - glp_r);
+    *ol = glp_l;
+    *orr = glp_r;
+}
+
 /* ------------------------------------------------------------ parameters --- */
 static int pulse;
 static uint32_t ext_age;
@@ -1175,6 +1398,10 @@ static void apply(int p, int v)
         break;
     case P_GLIDE: glide_k = 1.0f / ((0.02f + 0.012f * (float)v) * EN_SR); break;   /* 20 ms .. 1.2 s */
     case P_SWING: swing = (float)v * 0.005f; break;      /* the off sixteenths up to half a step late */
+    case P_GRAINS: gr_rate = v ? 0.8f + (float)v * 0.32f : 0.0f; break;      /* 1 .. 33 a second */
+    case P_GSIZE: gr_len = 25.0f * fm_exp2f((float)v * 0.0332f) * (EN_SR * 0.001f); break;   /* 25 ms .. 250 ms */
+    case P_GREV: gr_rev = (float)v * 0.01f; break;
+    case P_GRAND: gr_rand = (float)v * 0.01f; break;
     case P_HATS:
         hat_f = 0.55f + 0.0070f * (float)v;               /* the high-pass: ~4 kHz dark .. ~10 kHz bright */
         hat_open = 0.6f - 0.0035f * (float)v;             /* the open hat: long and soft .. short and crisp */
@@ -1278,6 +1505,8 @@ static void quiet(void)
     for (i = 0; i < EN_NPAD; i++)
         pad[i].amp = 0.0f;
     bass.amp = 0.0f;
+    for (i = 0; i < NGRAIN; i++)
+        grain[i].on = 0;
     notes_off();
 }
 
@@ -1291,6 +1520,17 @@ void en_init(void)
         tape[i] = 0;
     for (i = 0; i < PLEX_N; i++)
         plex[i] = 0;
+    for (i = 0; i < GN; i++)
+        gbuf[i] = 0;
+    for (i = 0; i < NGRAIN; i++)
+        grain[i].on = 0;
+    gw = gph = 0;
+    gacc = glp_l = glp_r = gr_t = 0.0f;
+    for (i = 0; i < EN_NSCION; i++) {          /* the CC map's changes, undone */
+        sc_bright[i] = 0.5f;
+        sc_level[i] = sc_dec[i] = 1.0f;
+        sc_panm[i] = sc_pitch[i] = 0.0f;
+    }
     tape_w = plex_w = tape_ph = 0;
     head2 = head2_t = 0.75f;
     head2_v = 0.0f;
@@ -1378,6 +1618,27 @@ static void play_stop(void)
     notes_off();
 }
 
+/* a CC through the map: a voice's own sound, or a setting moved around its knob (m -1 .. 1: at most the whole range) */
+static const int8_t DEST_PARAM[EN_NDEST] = {-1, -1, -1, -1, -1, -1, P_ECHO, P_REVERB, P_GRAINS, P_GSIZE, P_GREV, P_GRAND, P_PAD, P_BASS, P_BELLS, P_BTONE};
+static void sc_mod(int v, int dest, float m)
+{
+    if (v < 0 || v >= EN_NSCION)
+        return;
+    switch (dest) {
+    case EN_D_BRIGHT: sc_bright[v] = fm_clampf(0.5f + 0.5f * m, 0.0f, 1.0f); return;
+    case EN_D_LEVEL: sc_level[v] = fm_clampf(1.0f + m, 0.0f, 2.0f); return;
+    case EN_D_DECAY: sc_dec[v] = fm_exp2f(m); return;
+    case EN_D_PAN: sc_panm[v] = m; return;
+    case EN_D_PITCH: sc_pitch[v] = m * 200.0f; return;
+    default: break;
+    }
+    if (dest > EN_D_PITCH && dest < EN_NDEST) {
+        const int p = DEST_PARAM[dest], base = par[p];
+        apply(p, base + (int)(m * (float)(PARAMS[p].hi - PARAMS[p].lo) + (m < 0.0f ? -0.5f : 0.5f)));
+        par[p] = (int16_t)base;                  /* the knob's value stays; only what is heard moves */
+    }
+}
+
 static void drain(void)
 {
     while (q_r != q_w) {
@@ -1426,6 +1687,9 @@ static void drain(void)
             break;
         case C_PANIC: quiet(); break;
         case C_REGROW: regrow(); break;
+        case C_SCION: sc_preset = (int8_t)(a - 1); break;
+        case C_NOTE: scion_note(a, b & 0x7F, b >> 8 & 0x7F); break;
+        case C_MOD: sc_mod(a & 7, a >> 3, (float)b * 0.001f); break;
         }
     }
 }
@@ -1616,7 +1880,7 @@ static void render_bells(uint32_t n)
         v->att = att;
         if (amp < 0.0008f) {
             v->on = 0;
-            midi(0x81, v->note, 0);
+            bell_off(v);
         }
     }
 }
@@ -1699,7 +1963,11 @@ static void render_chunk(int32_t *out, uint32_t n, float gain)
     render_bells(n);
     render_drums(n);
     for (j = 0; j < n; j++) {
-        float wl, wr, l, r, el, er, xl, xr;
+        float wl, wr, l, r, el, er, xl, xr, gl, gr;
+        gran(0.5f * (mixl[j] + mixr[j]), &gl, &gr);       /* the grains, into the mix and a little to the reverb */
+        mixl[j] += gl;
+        mixr[j] += gr;
+        rsend[j] += 0.35f * (gl + gr);
         echoes(esend[j] * eg, &el, &er, &xl, &xr);
         reverb((rsend[j] * rg + (el + er + xl + xr) * 0.35f * rev_send) * 0.8f, &wl, &wr);
         l = (mixl[j] + 0.75f * el + 0.3f * xl + 1.3f * wl) * 0.36f * gain;
@@ -1747,6 +2015,8 @@ static void control(uint32_t n)                 /* once a chunk: the slow things
         en_loop_glow[i] *= 0.985f;
     for (i = 0; i < EN_NDRUM; i++)
         en_drum_glow[i] *= 0.95f;
+    for (i = 0; i < EN_NSCION; i++)
+        en_sc_glow[i] *= 0.985f;
 }
 
 void en_render(int32_t *out, uint32_t n, uint32_t gain_q12)

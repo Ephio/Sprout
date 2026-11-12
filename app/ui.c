@@ -8,6 +8,7 @@
  *   REC            FREEZE: the chord holds, the reverb rings on    OCT- / OCT+   the bells' octave
  *   ENV            the pad's colour: Rhodes / Voices (lit: Voices), kept with the piece
  *   SELECT tempo   ALGORITHM mode (loads a pool)   PRESETS the piece (Root is on the Setup page)
+ *   Every piece is a scene answering the Pocket Scion (MIDI in: scenes.c, amb.h)
  *   HOME SEQ FX SEL GLO   the pages: LAYERS, MOTION, SPACE, TONE, SETUP (EDIT steps through them)
  *   KNOB 1-4       the page's four values
  *   SAVE           saves (it also saves by itself a few seconds after a change, while resting);
@@ -15,52 +16,60 @@
 #include "fastmath.h"
 
 /* the pages, one a layer (a button each); SELECT steps through them in this order */
-enum { V_GARDEN, V_PAD, V_BELLS, V_BASS, V_PULSE, V_SPACE, V_SETUP, NVIEWS };
-static const char *const VIEW_NAME[NVIEWS] = {"Garden", "Pad", "Bells", "Bass", "Pulse", "Space", "Setup"};
-static const uint8_t VIEW_BTN[NVIEWS] = {B_HOME, B_ENV, B_ARP, B_LFO, B_SEQ, B_FX, B_GLO};
+enum { V_GARDEN, V_PAD, V_BELLS, V_BASS, V_GRAINS, V_SPACE, V_SETUP, V_CCMAP, NVIEWS };
+/* (the SEQ button's page was the pulse: it is the granulator now; the GLO button's second press, the CC map) */
+static const char *const VIEW_NAME[NVIEWS] = {"Garden", "Pad", "Bells", "Bass", "Grains", "Space", "Setup", "CC map"};
+static const uint8_t VIEW_BTN[NVIEWS] = {B_HOME, B_ENV, B_ARP, B_LFO, B_SEQ, B_FX, B_GLO, B_GLO};
 /* the four knobs of each page: a parameter, or one of these; and what the knob is called there */
-enum { K_LEDS = 100, K_CPU, K_NONE };
+enum { K_LEDS = 100, K_CPU, K_MVOICE, K_MCC, K_MDEST, K_MAMT, K_NONE };   /* (the CC map's four: voice, CC number, target, depth) */
 static const uint8_t VIEW_KNOB[NVIEWS][4] = {
     {P_TEMPO, P_EVOLVE, P_MOTION, P_DRIFT},
     {P_PAD, P_SWELL, P_BRIGHT, P_PADTONE},
     {P_BELLS, P_DENSITY, P_BTONE, P_BOCT},
     {P_BASS, P_BASSOCT, P_GLIDE, P_FIFTH},
-    {P_PULSE, P_HITS, P_SWING, P_HATS},
+    {P_GRAINS, P_GSIZE, P_GREV, P_GRAND},
     {P_ECHO, P_ETIME, P_REVERB, P_SIZE},
     {P_ROOT, P_TUNE, P_MIDI, K_LEDS},
+    {K_MVOICE, K_MCC, K_MDEST, K_MAMT},
 };
 static const char *const KNOB_LABEL[NVIEWS][4] = {
     {"Tempo", "Evolve", "Motion", "Drift"},
     {"Level", "Swell", "Bright", "Colour"},
     {"Level", "Density", "Tone", "Octave"},
     {"Level", "Octave", "Glide", "Fifth"},
-    {"Level", "Hits", "Swing", "Hats"},
+    {"Granules", "Size", "Reverse", "Random"},
     {"Echo", "Echo time", "Reverb", "Size"},
     {"Root", "Tune", "MIDI out", "Lights"},
+    {"Voice", "CC", "Target", "Depth"},
 };
+
+/* the Scion presets' notes (their scale, which is not the bed's pool), as the header says them */
+#define SCION_SCALES EN_NSCION_BED
+static const char *const SCION_SCALE[SCION_SCALES] = {"D min pent", "A maj pent", "F maj7", "chromatic"};
 
 /* the screen's colours: the cover of Ambient 1: Music for Airports (1978), as the web app and the site.
  * The map's paper, its ink; the land's greens for the pad (the chord) and the scale, its rivers for the
  * bells; the bass and the pulse in darker inks. Each layer has a pale tint for the shapes at rest. */
-#define K_BG RGB(246, 238, 181)
-#define K_PANEL RGB(255, 251, 224)
-#define K_LINE RGB(208, 214, 150)
-#define K_DIM RGB(112, 106, 58)
-#define K_TEXT RGB(29, 27, 2)
-#define K_ACC RGB(64, 128, 124)          /* the accent: the page, the knob being turned, a message's word */
-#define K_BELL RGB(84, 153, 149)
-#define K_BELL_T RGB(176, 214, 206)
-#define K_PAD RGB(112, 142, 62)
-#define K_PAD_T RGB(208, 220, 146)
-#define K_PULSE RGB(70, 66, 28)
-#define K_PULSE_T RGB(214, 214, 160)
-#define K_BASS RGB(138, 128, 52)
-#define K_BASS_T RGB(222, 218, 160)
-#define K_FROST RGB(60, 132, 160)
-#define K_FROST_T RGB(170, 210, 216)
+#define K_BG RGB(22, 30, 46)
+#define K_PANEL RGB(36, 48, 70)
+#define K_LINE RGB(74, 92, 124)
+#define K_DIM RGB(196, 210, 232)
+#define K_TEXT RGB(248, 250, 255)
+#define K_ACC RGB(120, 214, 206)          /* the accent: the page, the knob being turned, a message's word */
+#define K_BELL RGB(120, 206, 200)
+#define K_BELL_T RGB(44, 84, 92)
+#define K_PAD RGB(166, 208, 100)
+#define K_PAD_T RGB(60, 84, 50)
+#define K_PULSE RGB(214, 208, 150)
+#define K_PULSE_T RGB(84, 82, 56)
+#define K_BASS RGB(210, 196, 100)
+#define K_BASS_T RGB(88, 80, 46)
+#define K_FROST RGB(120, 196, 226)
+#define K_FROST_T RGB(44, 84, 104)
 
 static struct {
     uint8_t view;
+    uint8_t mv;                        /* the CC map: the voice being set (0..4) */
     uint32_t btn, keys, btn_used;
     uint32_t enc_t[NE];
     uint8_t enc_run[NE];               /* detents in the current quick run, per knob (accel) */
@@ -164,6 +173,14 @@ static int knob_get(int k)
         return proj.leds;
     if (k == K_CPU)
         return (int)plat_cpu_pct();
+    if (k == K_MVOICE)
+        return ui.mv + 1;
+    if (k == K_MCC)
+        return proj.cc_num[ui.mv];
+    if (k == K_MDEST)
+        return proj.cc_dest[ui.mv];
+    if (k == K_MAMT)
+        return proj.cc_amt[ui.mv];
     return 0;
 }
 static void knob_range(int k, int *lo, int *hi)
@@ -173,14 +190,15 @@ static void knob_range(int k, int *lo, int *hi)
         *hi = en_param_info(k)->hi;
     } else {
         *lo = 0;
-        *hi = k == K_LEDS ? 2 : k == K_CPU ? 100 : 0;
+        *lo = k == K_MVOICE ? 1 : 0;
+        *hi = k == K_LEDS ? 2 : k == K_CPU ? 100 : k == K_MVOICE ? EN_NSCION : k == K_MCC ? 127 : k == K_MDEST ? EN_NDEST - 1 : k == K_MAMT ? 100 : 0;
     }
 }
 static const char *knob_name(int k)
 {
     if (k < P_NPARAMS)
         return en_param_info(k)->name;
-    return k == K_LEDS ? "Lights" : k == K_CPU ? "CPU" : "";
+    return k == K_LEDS ? "Lights" : k == K_CPU ? "CPU" : k == K_MVOICE ? "Voice" : k == K_MCC ? "CC" : k == K_MDEST ? "Target" : k == K_MAMT ? "Depth" : "";
 }
 static void knob_text(int k, char *b)
 {
@@ -191,12 +209,18 @@ static void knob_text(int k, char *b)
         const char *n = v == 2 ? "Keys" : v ? "On" : "Off";
         while ((*b++ = *n++))
             ;
-    } else if (k == K_CPU) {
+    } else if (k == K_CPU || k == K_MAMT) {
         itoa_u((uint32_t)v, b);
         while (*b)
             b++;
         *b++ = '%';
         *b = 0;
+    } else if (k == K_MVOICE || k == K_MCC) {
+        itoa_u((uint32_t)v, b);
+    } else if (k == K_MDEST) {
+        const char *n = EN_DEST_NAME[v < EN_NDEST ? v : 0];
+        while ((*b++ = *n++))
+            ;
     } else {
         b[0] = 0;
     }
@@ -216,6 +240,17 @@ static void knob_set(int k, int v)
         en_set(k, v);
     } else if (k == K_LEDS) {
         proj.leds = (uint8_t)v;
+    } else if (k == K_MVOICE) {                  /* which voice's map: the page's own, not saved */
+        ui.mv = (uint8_t)(v - 1);
+        return;
+    } else if (k == K_MCC) {
+        proj.cc_num[ui.mv] = (uint8_t)v;
+    } else if (k == K_MDEST || k == K_MAMT) {    /* what it moved goes back to where it was */
+        en_mod(ui.mv, proj.cc_dest[ui.mv], 64, 100);
+        if (k == K_MDEST)
+            proj.cc_dest[ui.mv] = (uint8_t)v;
+        else
+            proj.cc_amt[ui.mv] = (uint8_t)v;
     }
     mark_dirty();
 }
@@ -303,6 +338,8 @@ static void button(int b)
     int v;
     for (v = 0; v < NVIEWS; v++)                 /* a page's button: its page */
         if (VIEW_BTN[v] == b) {
+            if (v == V_SETUP && ui.view == V_SETUP)   /* GLO again: the CC map; and again: back */
+                v = V_CCMAP;
             set_view(v);
             return;
         }
@@ -347,17 +384,27 @@ static void button(int b)
     }
 }
 
-/* MIDI in (USB and the TRS jack): channel 1 notes add or remove their note from the scale; clock and
- * start / stop drive the grid */
+/* MIDI in (USB and the TRS jack). Clock and start / stop drive the grid. Every piece answers the Pocket Scion: its
+ * notes on channels 1..5 ring a voice each, the CCs go where the map (Setup, GLO again) sends them (by default CC
+ * 71..75 to the brightness of voices 1..5), and a program change picks a piece. */
 static void midi_in(void)
 {
     uint32_t pkt;
     while (plat_midi_in(&pkt, 0)) {
-        uint32_t st = (pkt >> 8) & 0xFFu, n = (pkt >> 16) & 0x7Fu, v = pkt >> 24;
+        uint32_t st = (pkt >> 8) & 0xFFu, n = (pkt >> 16) & 0x7Fu, v = (pkt >> 24) & 0x7Fu;
+        uint32_t ty = st & 0xF0u, ch = st & 0x0Fu;
         if (st == 0xF8u || st == 0xFAu || st == 0xFBu || st == 0xFCu)
             en_clock(st == 0xF8u ? EN_CLK_TICK : st == 0xFAu ? EN_CLK_START : st == 0xFBu ? EN_CLK_CONTINUE : EN_CLK_STOP);
-        else if (st == 0x90u && v)
-            toggle_note((int)(n % 12u));
+        else if (ty == 0xC0u && n < (uint32_t)NPIECES && n != proj.piece)
+            set_piece((int)n);
+        else if (ty == 0x90u && v && ch < EN_NSCION)
+            en_note((int)ch, (int)n, (int)v);
+        else if (ty == 0xB0u) {                       /* a CC: every voice whose map has this number */
+            int s;
+            for (s = 0; s < EN_NSCION; s++)
+                if (proj.cc_num[s] == n && proj.cc_dest[s])
+                    en_mod(s, proj.cc_dest[s], (int)v, proj.cc_amt[s]);
+        }
     }
 }
 
@@ -720,7 +767,10 @@ static void draw_header(void)
         cv_round(4, 4, w, 20, 6, K_TEXT);
         cv_text(10, 6, &FONT_B, piece_name(proj.piece), K_BG);
         w += 10;                                  /* the root, then the mode, where they clear the right side */
-        if (w + text_w(&FONT_XS, EN_NOTE_NAME[proj.par[P_ROOT]]) + 4 <= x) {
+        if (proj.piece < SCION_SCALES) {          /* a Scion preset's piece: the scale its notes come in */
+            if (w + text_w(&FONT_XS, SCION_SCALE[proj.piece]) + 4 <= x)
+                cv_text(w, 8, &FONT_XS, SCION_SCALE[proj.piece], K_DIM);
+        } else if (w + text_w(&FONT_XS, EN_NOTE_NAME[proj.par[P_ROOT]]) + 4 <= x) {
             w = cv_text(w, 8, &FONT_XS, EN_NOTE_NAME[proj.par[P_ROOT]], K_TEXT);
             if (w + 3 + text_w(&FONT_XS, mode_name()) + 4 <= x)
                 cv_text(w + 3, 8, &FONT_XS, mode_name(), K_DIM);
@@ -858,9 +908,9 @@ static int help_lines(int b, const char *l[HELP_LINES])
     case B_ENV: L("THE PAD"); L("LEVEL, SWELL, BRIGHT,"); L("COLOUR"); break;
     case B_ARP: L("THE BELLS"); L("LEVEL, DENSITY, TONE,"); L("OCTAVE"); break;
     case B_LFO: L("THE BASS"); L("LEVEL, OCTAVE, GLIDE, FIFTH"); break;
-    case B_SEQ: L("THE PULSE"); L("LEVEL, HITS, SWING, HATS"); break;
+    case B_SEQ: L("THE GRANULATOR"); L("GRANULES, SIZE, REVERSE,"); L("RANDOM"); break;
     case B_FX: L("THE SPACE"); L("ECHO, ECHO TIME, REVERB,"); L("SIZE"); break;
-    case B_GLO: L("SETUP"); L("ROOT, TUNE, MIDI OUT, LIGHTS"); break;
+    case B_GLO: L("SETUP"); L("ROOT, TUNE, MIDI OUT, LIGHTS"); L("AGAIN: THE CC MAP"); break;
     case B_EDIT: L("THE NEXT CHORD,"); L("ON THE NEXT BAR"); break;
     case B_REC: L("FREEZE: THE CHORD HOLDS"); L(" AND THE REVERB RINGS ON"); L("AGAIN: THAW"); break;
     case B_OCTDN: L("THE BELLS AN OCTAVE DOWN"); L("WITH OCT+, 5 S: UPDATE MODE"); break;
@@ -884,6 +934,8 @@ static void draw_help(void)
         text_c(120, 56 + k * 20, &FONT_S, l[k] + (l[k][0] == ' '), K_TEXT);
 }
 
+#include "scenes.c"
+
 static void draw_main(void)
 {
     uint32_t h = hash(2166136261u, pool_abs() | (uint32_t)proj.par[P_ROOT] << 12 | (uint32_t)en_frozen << 16 | proj.piece << 24 |
@@ -898,6 +950,14 @@ static void draw_main(void)
             draw_help();
             cv_blit(0, MAIN_Y);
         }
+        return;
+    }
+    if (proj.piece < EN_NSCION_PRESETS) {        /* a Scion preset: its scene, which moves all the time */
+        if (proj.piece == 3u && (ui.frame / 3u) % 2u)   /* the globe costs more: half the rate */
+            return;
+        cv_begin(240, MAIN_H, K_BG);
+        scene_draw(proj.piece);
+        cv_blit(0, MAIN_Y);
         return;
     }
     for (i = 0; i < EN_NPAD; i++)

@@ -1,3 +1,11 @@
+# Sprout
+
+**Sprout** is a Pocket Scion companion for the M-VAVE FM-1, derived from AMB-1 by Charles Vestal (itself built on fm1-base
+and felucca-bsp, from Felucca by Leo Kuroshita). Eight scenes answer the notes and CCs that the Instruo Pocket Scion
+sends over MIDI; see `docs/SCION.md`. This version by Paolo Pino. MPL-2.0, as AMB-1. What follows is AMB-1's own README.
+
+---
+
 # AMB-1 for the M-VAVE FM-1
 
 AMB-1 turns the M-VAVE FM-1 into a generative ambient machine, inspired by Brian Eno's

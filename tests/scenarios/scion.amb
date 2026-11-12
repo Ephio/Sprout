@@ -1,0 +1,208 @@
+# the Pocket Scion: notes on channels 1..5 ring a voice each on the Scion presets (pieces 0..3), CC 71..75 brighten
+# them, a program change picks a piece; on the other pieces channel 1 notes are still the scale's keys
+wait 500
+expect piece 0
+expect pool 0x4A9
+wav scion.wav
+# Garden (D minor pentatonic): a note on each channel; the scale is not touched
+midi 90 3E 64
+midi 91 41 50
+midi 92 43 7F
+midi 93 45 60
+midi 94 48 70
+wait 200
+expect sccount0 1
+expect sccount1 1
+expect sccount4 1
+expect scnote2 67
+expect pool 0x4A9
+wait 400
+shot garden_notes.png
+# a note off and velocity 0 do nothing; a channel above 5 neither
+midi 80 3E 00
+midi 90 3E 00
+midi 95 40 64
+wait 100
+expect sccount0 1
+expect sccount4 1
+# a voice's brightness (CC 71 = 0x47), and a burst
+midi B0 47 7F
+midi B0 48 00
+midi 90 3E 64
+midi 90 41 64
+midi 90 43 64
+wait 600
+expect sccount0 4
+shot garden_burst.png
+# Mycelium (A major pentatonic), by PRESET and by program change
+turn PRESET 1
+expect piece 1
+expect pool 0x295
+midi 90 45 64
+midi 91 49 64
+midi 92 4C 64
+wait 300
+wait 1500
+shot mycelium_young.png
+# the networks grow with notes
+midi 90 45 64
+midi 91 49 64
+midi 92 4C 64
+midi 93 51 64
+midi 94 54 64
+wait 120
+midi 90 45 64
+midi 91 49 64
+midi 92 4C 64
+midi 93 51 64
+midi 94 54 64
+wait 120
+midi 90 45 64
+midi 91 49 64
+midi 92 4C 64
+midi 93 51 64
+midi 94 54 64
+wait 300
+shot mycelium_grown.png
+# Flora (F major 7), the seasons on Bright (the Pad page's third knob), by program change
+midi C0 02
+wait 200
+expect piece 2
+expect pool 0x891
+tap ENV
+midi 90 41 64
+midi 91 45 64
+midi 92 48 64
+wait 500
+shot flora_spring.png
+spin K3 25
+midi 90 41 64
+midi 91 45 64
+wait 3000
+shot flora_summer.png
+spin K3 25
+midi 90 41 64
+midi 91 45 64
+midi 92 48 64
+wait 3000
+shot flora_autumn.png
+spin K3 25
+midi 90 41 64
+midi 91 45 64
+midi 92 48 64
+wait 3000
+shot flora_winter.png
+# Earth (chromatic notes over a deep bed)
+midi C0 03
+wait 200
+expect piece 3
+tap HOME
+midi 90 3C 64
+midi 91 3D 64
+midi 92 3E 64
+midi 93 40 64
+wait 3000
+midi 94 41 64
+wait 200
+shot earth.png
+wait 5000
+shot earth_later.png
+wavstop
+expect peak_db_max -0.5
+# the other four pieces answer the Scion too (their music is AMB-1's), and the scale is not touched: Posidonia is C#
+# Ionian; a note on channel 1 rings and does not take a note out of the scale
+midi C0 04
+wait 200
+expect piece 4
+expect pool 0xAB5
+midi 90 3C 64
+midi 94 40 64
+wait 300
+expect pool 0xAB5
+expect scnote0 60
+expect scnote4 64
+shot posidonia.png
+midi C0 05
+midi 91 40 64
+wait 300
+expect piece 5
+expect scnote1 64
+shot night.png
+midi C0 06
+midi 92 43 64
+midi 92 47 64
+wait 300
+expect piece 6
+shot lighthouse.png
+midi C0 07
+midi 93 45 64
+wait 300
+expect piece 7
+shot shoreline.png
+# a program change to a piece that does not exist is ignored
+midi C0 09
+wait 100
+expect piece 7
+
+# the granulator is the SEQ page's now (Granules, Size, Reverse, Random: parameters 28..31), off at first
+tap SEQ
+expect par28 0
+spin K1 30
+spin K2 20
+spin K3 40
+spin K4 25
+expect par28 30
+expect par29 20
+expect par30 40
+expect par31 25
+wait 400
+shot grains.png
+# the CC map: GLO is Setup, GLO again the CC map; by default CC 71..75 are the five voices' tone
+tap GLO
+tap GLO
+expect ccnum0 71
+expect ccnum4 75
+expect ccdest0 1
+expect ccamt0 100
+wait 200
+shot ccmap.png
+# voice 3, CC 20, to Level, half depth (small turns, a moment apart: the knobs speed up when quick)
+spin K1 2
+spin K2 -10
+wait 700
+spin K2 -10
+wait 700
+spin K2 -10
+wait 700
+spin K2 -10
+wait 700
+spin K2 -10
+wait 700
+spin K2 -3
+spin K3 1
+spin K4 -10
+wait 700
+spin K4 -10
+wait 700
+spin K4 -10
+wait 700
+spin K4 -10
+wait 700
+spin K4 -10
+wait 700
+expect ccnum2 20
+expect ccdest2 2
+expect ccamt2 50
+shot ccmap2.png
+# the map's changes belong to the voice shown: voice 1 is as it was
+spin K1 -2
+expect ccnum0 71
+expect ccdest0 1
+# a CC through the map (no crash, notes still ring), and CC 20 at 0 mutes voice 3: its note rings no more (the count still counts)
+midi B0 14 00
+midi 92 40 64
+wait 300
+expect scnote2 64
+# GLO again is Setup
+tap GLO
+shot setup_again.png

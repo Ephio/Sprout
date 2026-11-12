@@ -38,7 +38,7 @@
 
 /* modes: pools relative to the root (bit i: root + i semitones) */
 enum { MODE_IONIAN, MODE_DORIAN, MODE_PHRYGIAN, MODE_LYDIAN, MODE_MIXOLYDIAN, MODE_AEOLIAN, MODE_PENT_MAJ,
-       MODE_PENT_MIN, EN_NMODES };
+       MODE_PENT_MIN, MODE_MAJ7, EN_NMODES };
 extern const char *const EN_MODE_NAME[EN_NMODES];
 extern const uint16_t EN_MODE_POOL[EN_NMODES];
 extern const char *const EN_NOTE_NAME[12];
@@ -54,7 +54,8 @@ enum {
     P_TUNE, P_MIDI, P_TEMPO, P_ROOT, P_MODE, P_BOCT,  /* setup, panel encoders, bell octave */
     P_PADTONE,                                        /* the pad's colour, set by the piece: Rhodes, Voices */
     P_BASSOCT, P_GLIDE, P_FIFTH,                      /* bass: its octave, its glide, how often it leans on the fifth */
-    P_SWING, P_HATS,                                  /* pulse: swing, the hats' colour */
+    P_SWING, P_HATS,                                  /* pulse: swing, the hats' colour (the pulse has no page now) */
+    P_GRAINS, P_GSIZE, P_GREV, P_GRAND,               /* the granulator: grains a second (0 off), their size, reverse %, random % */
     P_NPARAMS
 };
 typedef struct {
@@ -111,6 +112,29 @@ int en_chord_tones(uint32_t pool, int root, int deg, int *pcs);
 /* voice leading: new pad notes for the tones, each voice moving as little as possible, all in lo..hi */
 void en_voice_lead(const int *from, const int *pcs, int ntones, int *to, int lo, int hi);
 const char *en_chord_name(const int *pcs, int n, char *buf);   /* "Em7", "Dsus4", "C" ... */
+
+/* POCKET SCION. The Instruo Pocket Scion plays the FM-1 over MIDI: its five voices come on MIDI channels 1..5, and
+ * every piece answers it. The first four pieces are made for its four presets (Garden, Mycelium, Flora, Earth: a
+ * quiet bed, the Scion's notes on top); the other four keep the music of AMB-1's (its generative loops go on) with
+ * the Scion's notes added. A note on channel c rings a voice
+ * of its own (bell family, pan and colour by channel, voicing by preset); CC 71..75 move that voice's brightness.
+ * The generative garden underneath goes on as a quiet bed (the Pad, the Bass), or not at all. */
+#define EN_NSCION 5                    /* the Scion's voices (MIDI channels 1..5) */
+#define EN_NSCION_PRESETS 8            /* every piece answers the Scion (a voicing each) */
+#define EN_NSCION_BED 4                /* pieces 0..3 are its four presets' own: no loops, their notes only */
+void en_scion(int preset);             /* the piece playing (its voicing), or -1 for none */
+void en_note(int ch, int note, int vel);   /* a Scion note on: voice 0..4 (channel - 1), MIDI note, velocity 1..127 */
+void en_cc(int voice, int val);        /* a voice's brightness, 0..127 (en_mod to Bright, at full depth) */
+/* Where a CC can be sent (the player's map, the Setup button's second page): a Scion voice's own sound, or one of the
+ * garden's settings, moved up and down around where its knob is */
+enum { EN_D_OFF, EN_D_BRIGHT, EN_D_LEVEL, EN_D_DECAY, EN_D_PAN, EN_D_PITCH,   /* the voice's: its tone, volume, length, place, pitch */
+       EN_D_ECHO, EN_D_REVERB, EN_D_GRAINS, EN_D_GSIZE, EN_D_GREV, EN_D_GRAND,
+       EN_D_PAD, EN_D_BASS, EN_D_BELLS, EN_D_TONE, EN_NDEST };
+extern const char *const EN_DEST_NAME[EN_NDEST];
+void en_mod(int voice, int dest, int val, int amount);   /* a CC's value 0..127 (64: no change) for the voice's map, depth 0..100 */
+extern volatile float en_sc_glow[EN_NSCION];       /* 0..1: this voice just rang (UI) */
+extern volatile uint8_t en_sc_count[EN_NSCION];    /* notes received, wrapping: the UI sees how many are new */
+extern volatile uint8_t en_sc_note[EN_NSCION];     /* the last note of each voice (MIDI) */
 
 /* the pieces: recipes for every parameter (Tune and MIDI out included, but they are the player's) */
 #define EN_NPIECES 8

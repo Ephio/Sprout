@@ -30,6 +30,16 @@ static void keep(void)                           /* the piece playing, into its 
     proj.slot[proj.piece].pool = proj.pool;
 }
 
+static void cc_defaults(void)                    /* the Scion's voices: CC 71..75 to their tone, as it began */
+{
+    int i;
+    for (i = 0; i < EN_NSCION; i++) {
+        proj.cc_num[i] = (uint8_t)(71 + i);
+        proj.cc_dest[i] = EN_D_BRIGHT;
+        proj.cc_amt[i] = 100;
+    }
+}
+
 void project_defaults(void)
 {
     int i;
@@ -42,6 +52,7 @@ void project_defaults(void)
         proj.par[i] = en_param_info(i)->def;
     take(&proj.slot[0]);
     proj.leds = 1;
+    cc_defaults();
 }
 
 static int pool_ok(uint32_t p)                   /* the root and at least two more notes */
@@ -70,6 +81,9 @@ static int project_valid(void)                  /* an older format: the recipes 
         return 0;
     if (proj.format != PROJ_FORMAT || proj.piece >= NPIECES)
         return 0;
+    for (i = 0; i < EN_NSCION; i++)
+        if (proj.cc_num[i] > 127u || proj.cc_dest[i] >= EN_NDEST || proj.cc_amt[i] > 100u)
+            return 0;
     for (i = 0; i < NPIECES; i++)
         if (!pool_ok(proj.slot[i].pool) || !pars_ok(proj.slot[i].par))
             return 0;
@@ -110,6 +124,7 @@ static void from_v3(const project_v3_t *o)
     recipe(proj.piece, &r);
     for (p = 0; p < P_NPARAMS; p++)
         proj.par[p] = p < V3_NPARAMS ? o->par[p] : r.par[p];
+    cc_defaults();
 }
 
 int project_load(void)
@@ -157,4 +172,5 @@ void project_apply(void)
     for (i = 0; i < P_NPARAMS; i++)
         en_set(i, proj.par[i]);
     en_pool(proj.pool);
+    en_scion(proj.piece < EN_NSCION_PRESETS ? (int)proj.piece : -1);   /* the piece's Scion voicing */
 }

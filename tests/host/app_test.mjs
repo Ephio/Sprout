@@ -12,13 +12,14 @@ const cstr = (p) => { const m = new Uint8Array(ex.memory.buffer); let e = p; whi
 let fails = 0;
 const check = (ok, what) => { if (!ok) { console.log("FAIL", what); fails++; } };
 check(ex.app_npieces() === 8, "eight pieces");
-check(cstr(ex.app_piece_name(2)) === "Voices", "piece 2 is Voices");
-check(ex.app_piece_par(1, 18) === 60, "Departures' tempo 60");
+check(cstr(ex.app_piece_name(0)) === "Garden" && cstr(ex.app_piece_name(3)) === "Earth", "pieces 0..3 are the Pocket Scion's presets");
+check(cstr(ex.app_piece_name(5)) === "Night" && cstr(ex.app_piece_name(7)) === "Shoreline", "pieces 4..7 are the scenes with AMB-1's music");
+check(ex.app_piece_par(4, 18) === 60, "Departures' tempo 60");
 check(cstr(ex.app_param_text(6, 100)) === "5:00", "Drift's text");
 check(cstr(ex.app_chord_name(2, 2, 5, 9, 0)) === "Dm7", "a chord's name: " + cstr(ex.app_chord_name(2, 2, 5, 9, 0)));
 ex.app_init();
-for (let p = 0; p < ex.app_nparams(); p++) ex.app_set(p, ex.app_piece_par(0, p));
-ex.app_pool(ex.app_piece_pool(0));
+for (let p = 0; p < ex.app_nparams(); p++) ex.app_set(p, ex.app_piece_par(4, p));
+ex.app_pool(ex.app_piece_pool(4));
 ex.app_play(1);
 let peak = 0, bad = 0;
 const run = (secs) => { for (let i = 0; i < secs * 44100 / 128; i++) { ex.app_render(128, 2400);
@@ -27,8 +28,8 @@ run(30);
 check(!bad && peak > 0.05 && peak < 1, `a piece plays (peak ${peak.toFixed(3)})`);
 const st = new Float32Array(ex.memory.buffer, ex.app_state(), ex.app_state_len());
 check(st[0] === 1 && st[16] > 100, "the state: playing, the grid running");
-for (let p = 0; p < ex.app_nparams(); p++) ex.app_set(p, ex.app_piece_par(2, p));   /* Voices */
-ex.app_pool(ex.app_piece_pool(2));
+for (let p = 0; p < ex.app_nparams(); p++) ex.app_set(p, ex.app_piece_par(5, p));   /* Voices */
+ex.app_pool(ex.app_piece_pool(5));
 ex.app_regrow();
 peak = 0;
 run(20);

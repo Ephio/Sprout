@@ -1,20 +1,20 @@
 {
   "schema": 1,
   "id": "amb",
-  "name": "AMB-1",
-  "author": "Charles Vestal",
+  "name": "Sprout",
+  "author": "Paolo Pino",
   "license": "MPL-2.0",
-  "tagline": "A generative ambient machine for the FM-1",
-  "description": "AMB-1 turns the M-VAVE FM-1 into a generative ambient machine, inspired by Brian Eno's Music for Airports. It plays itself from the moment it's switched on: breathing voices, soft bells on tape loops of unequal length, a gliding bass and quiet Euclidean percussion, through a tape echo and a plate reverb. It has eight pieces, and it is an album as much as an instrument. You don't perform it, you tend it: pick a piece and a scale, take notes out, put them back, and let it grow.",
+  "tagline": "A Pocket Scion companion for the FM-1, derived from AMB-1",
+  "description": "Sprout is a Pocket Scion companion for the M-VAVE FM-1, derived from AMB-1 by Charles Vestal. Eight scenes (a cherry garden, mycelium, a growing Monstera, the Earth, a seagrass meadow, a river at night, a lighthouse in a storm and a beach at sunset) answer the notes and CCs that the Instruo Pocket Scion sends over MIDI: every channel rings its own bell, a CC map steers the voices, the effects and a granulator, and a quiet generative bed plays underneath.",
   "tags": ["ambient", "generative", "fm"],
-  "install": "https://charlesvestal.github.io/fm1-amb/install/",
-  "site": "https://charlesvestal.github.io/fm1-amb/",
-  "source": "https://github.com/charlesvestal/fm1-amb",
+  "install": "https://github.com/Ephio/sprout",
+  "site": "https://github.com/Ephio/sprout",
+  "source": "https://github.com/Ephio/sprout",
   "screenshot": "docs/img/screen-garden.png",
   "hardware": {
     "models": ["FM-1"],
     "flash": ["856014", "B36014"],
     "features": ["usb-audio-in", "screen-reader"]
   },
-  "credits": "Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments)."
+  "credits": "Derived from AMB-1 by Charles Vestal. Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments)."
 }

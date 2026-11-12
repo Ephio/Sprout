@@ -298,6 +298,309 @@ int main(void)
         en_play(1);
     }
 
+    /* Pocket Scion: a note on a channel rings a voice of its own; the generative bed can be left out */
+    {
+        static float el_, er_, zc_;
+        static int zn_;
+        float ch_l[EN_NSCION], ch_r[EN_NSCION], dec_e[EN_NSCION_PRESETS], q0, q1;
+        int k, j, b2;
+        uint32_t m0;
+        /* a helper in the block: render secs, energy per side in el_, er_, zero crossings in zc_ */
+#define SC_QUIET()                                                                                                 \
+    do {                                                                                                           \
+        en_render(buf, 256, 2048); /* what the last block left queued (a play) is taken first */                   \
+        en_playing = 0; /* bells still ringing from before would ring on through en_init */                        \
+        en_panic();                                                                                                \
+        en_render(buf, 256, 2048);                                                                                 \
+        en_playing = 0;                                                                                            \
+        en_init();                                                                                                 \
+        en_set(P_PAD, 0);                                                                                          \
+        en_set(P_BASS, 0);                                                                                         \
+        en_set(P_PULSE, 0);                                                                                        \
+        en_set(P_DENSITY, 0);                                                                                      \
+        en_set(P_ECHO, 0);                                                                                         \
+        en_set(P_REVERB, 0);                                                                                       \
+        en_set(P_MIDI, 1);                                                                                         \
+        en_regrow(); /* as a piece change: the loops grow again at Density 0 */                                    \
+        en_play(1);                                                                                                \
+    } while (0)
+#define SC_RUN(secs)                                                                                               \
+    do {                                                                                                           \
+        float prev_ = 0.0f;                                                                                        \
+        el_ = er_ = zc_ = 0.0f;                                                                                    \
+        for (b2 = 0; b2 < (int)((secs) * 44100.0f / 256.0f); b2++) {                                               \
+            en_render(buf, 256, 2048);                                                                             \
+            for (j = 0; j < 256; j++) {                                                                            \
+                float l_ = (float)buf[2 * j] / 8388608.0f, r_ = (float)buf[2 * j + 1] / 8388608.0f;                \
+                if (l_ != l_ || r_ != r_)                                                                          \
+                    bad++;                                                                                         \
+                el_ += l_ * l_;                                                                                    \
+                er_ += r_ * r_;                                                                                    \
+                zc_ += (l_ > 0.0f) != (prev_ > 0.0f);                                                              \
+                prev_ = l_;                                                                                        \
+            }                                                                                                      \
+        }                                                                                                          \
+    } while (0)
+
+        /* silence without notes, sound with one */
+        SC_QUIET();
+        en_scion(0);
+        SC_RUN(1.0f);
+        CHECK(el_ + er_ < 1e-6f, "Scion bed left out: not silent (%g)", (double)(el_ + er_));
+        m0 = midi_count;
+        en_note(2, 62, 100);
+        SC_RUN(0.5f);
+        CHECK(el_ + er_ > 1e-3f, "a Scion note makes no sound (%g)", (double)(el_ + er_));
+        CHECK(midi_count > m0, "a Scion note sends no MIDI out");
+        CHECK(en_sc_count[2] == 1 && en_sc_note[2] == 62 && en_sc_glow[2] > 0.1f, "Scion state: %d %d %f", en_sc_count[2],
+              en_sc_note[2], (double)en_sc_glow[2]);
+        SC_RUN(15.0f);
+        SC_RUN(0.5f);
+        CHECK(el_ + er_ < 1e-5f, "a Scion note rings on (%g)", (double)(el_ + er_));
+        /* velocity 0 is a note off: nothing */
+        en_note(1, 60, 0);
+        SC_RUN(0.3f);
+        CHECK(el_ + er_ < 1e-6f && en_sc_count[1] == 0, "velocity 0 rang");
+
+        /* each channel its own place: 1 left .. 5 right */
+        for (k = 0; k < EN_NSCION; k++) {
+            SC_QUIET();
+            en_scion(0);
+            en_note(k, 64, 100);
+            SC_RUN(1.0f);
+            ch_l[k] = el_;
+            ch_r[k] = er_;
+        }
+        CHECK(ch_l[0] > 1.5f * ch_r[0], "channel 1 not left");
+        CHECK(ch_r[4] > 1.5f * ch_l[4], "channel 5 not right");
+        CHECK(ch_l[2] > 0.6f * ch_r[2] && ch_r[2] > 0.6f * ch_l[2], "channel 3 not centred");
+
+        /* the presets' voicings: Earth's drops are short, Flora's long (energy 2..4 s after the note) */
+        for (k = 0; k < EN_NSCION_PRESETS; k++) {
+            SC_QUIET();
+            en_scion(k);
+            en_note(2, 60, 100);
+            SC_RUN(2.0f);
+            SC_RUN(2.0f);
+            dec_e[k] = el_ + er_;
+        }
+        CHECK(dec_e[3] < 0.35f * dec_e[2], "Earth does not die faster than Flora: %g vs %g", (double)dec_e[3],
+              (double)dec_e[2]);
+
+        /* a voice's CC: brighter with 127 than with 0 (zero crossings) */
+        SC_QUIET();
+        en_scion(0);
+        en_cc(0, 0);
+        en_note(0, 60, 100);
+        SC_RUN(2.0f);
+        q0 = zc_;
+        SC_QUIET();
+        en_scion(0);
+        en_cc(0, 127);
+        en_note(0, 60, 100);
+        SC_RUN(2.0f);
+        q1 = zc_;
+        CHECK(q1 > 1.15f * q0, "CC 127 not brighter than CC 0: %.0f vs %.0f", (double)q1, (double)q0);
+        zn_ = 0;
+        (void)zn_;
+
+        /* a burst (a ratcheting Scion), at the extremes: bounded, no NaN */
+        SC_QUIET();
+        en_scion(1);
+        en_set(P_BELLS, 100);
+        en_set(P_BTONE, 100);
+        peak = 0.0f;
+        bad = 0;
+        for (k = 0; k < 400; k++) {
+            en_note(k % EN_NSCION, 24 + (k * 7) % 90, 1 + (k * 13) % 127);
+            en_cc(k % EN_NSCION, k % 128);
+            run(0.02f);
+        }
+        run(5.0f);
+        CHECK(!bad && peak < 1.0f, "a burst of Scion notes: bad %d peak %f", bad, (double)peak);
+        run(25.0f);
+        peak = 0.0f;
+        run(1.0f);
+        CHECK(peak < 0.01f, "the burst's tails do not die (%f)", (double)peak);
+        bad = 0;
+
+        /* the granulator: off by default; with Granules a cloud of the recent past is added; at its extremes it stays sane */
+        {
+            float base_e, e1;
+            int sz, rv, rn;
+            SC_QUIET();
+            en_scion(0);
+            en_note(2, 60, 100);
+            SC_RUN(6.0f);
+            base_e = el_ + er_;
+            SC_QUIET();
+            en_scion(0);
+            en_set(P_GRAINS, 100);
+            en_set(P_GSIZE, 60);
+            en_set(P_GRAND, 60);
+            en_note(2, 60, 100);
+            SC_RUN(6.0f);
+            e1 = el_ + er_;
+            CHECK(e1 > 1.2f * base_e, "Granules adds nothing: %g vs %g", (double)e1, (double)base_e);
+            for (sz = 0; sz <= 100; sz += 100)
+                for (rv = 0; rv <= 100; rv += 100)
+                    for (rn = 0; rn <= 100; rn += 100) {
+                        SC_QUIET();
+                        en_scion(1);
+                        en_set(P_BELLS, 100);
+                        en_set(P_GRAINS, 100);
+                        en_set(P_GSIZE, sz);
+                        en_set(P_GREV, rv);
+                        en_set(P_GRAND, rn);
+                        bad = 0;
+                        peak = 0.0f;
+                        for (k = 0; k < 120; k++) {
+                            en_note(k % EN_NSCION, 24 + (k * 11) % 90, 1 + (k * 17) % 127);
+                            run(0.05f);
+                        }
+                        run(4.0f);
+                        CHECK(!bad && peak < 1.0f, "granulator size %d rev %d rand %d: bad %d peak %f", sz, rv, rn, bad, (double)peak);
+                    }
+            /* and it stops: Granules 0, the grains end, a quiet room */
+            SC_QUIET();
+            en_scion(0);
+            en_set(P_GRAINS, 100);
+            en_note(2, 60, 100);
+            SC_RUN(1.0f);
+            en_set(P_GRAINS, 0);
+            SC_RUN(20.0f);
+            SC_RUN(1.0f);
+            CHECK(el_ + er_ < 1e-5f, "the grains go on after Granules 0 (%g)", (double)(el_ + er_));
+        }
+
+        /* the CC map: a voice's tone, level, length, place and pitch; a setting moved around its knob; Off, and depth 0 */
+        {
+            float e0, e2, l4, r4;
+            SC_QUIET();
+            en_scion(0);
+            en_note(0, 60, 100);
+            SC_RUN(6.0f);
+            e0 = el_ + er_;
+            q0 = zc_;
+            SC_QUIET();
+            en_scion(0);
+            en_mod(0, EN_D_LEVEL, 0, 100);
+            en_note(0, 60, 100);
+            SC_RUN(6.0f);
+            CHECK(el_ + er_ < 0.05f * e0, "CC to Level at 0 does not silence the voice");
+            SC_QUIET();
+            en_scion(0);
+            en_mod(0, EN_D_LEVEL, 127, 100);
+            en_note(0, 60, 100);
+            SC_RUN(6.0f);
+            CHECK(el_ + er_ > 1.8f * e0, "CC to Level at 127 does not raise the voice (%g vs %g)", (double)(el_ + er_), (double)e0);
+            SC_QUIET();
+            en_scion(0);
+            en_mod(0, EN_D_DECAY, 127, 100);
+            en_note(0, 60, 100);
+            SC_RUN(6.0f);
+            e2 = el_ + er_;
+            CHECK(e2 > 1.3f * e0, "CC to Decay does not lengthen the ring (%g vs %g)", (double)e2, (double)e0);
+            SC_QUIET();
+            en_scion(0);
+            en_mod(0, EN_D_PITCH, 127, 100);
+            en_note(0, 60, 100);
+            SC_RUN(2.0f);
+            q1 = zc_;
+            SC_QUIET();
+            en_scion(0);
+            en_note(0, 60, 100);
+            SC_RUN(2.0f);
+            CHECK(q1 > 1.06f * zc_, "CC to Pitch does not raise the note: %.0f vs %.0f", (double)q1, (double)zc_);
+            SC_QUIET();
+            en_scion(0);
+            en_mod(4, EN_D_PAN, 0, 100);        /* voice 5 is on the right: pushed all the way left */
+            en_note(4, 64, 100);
+            SC_RUN(1.0f);
+            l4 = el_;
+            r4 = er_;
+            CHECK(l4 > 1.5f * r4, "CC to Pan does not move voice 5 to the left");
+            SC_QUIET();
+            en_scion(0);
+            en_mod(0, EN_D_GRAINS, 127, 100);   /* a setting: Granules, from its knob (0) up to 100 */
+            en_note(0, 60, 100);
+            SC_RUN(6.0f);
+            CHECK(el_ + er_ > 1.05f * e0, "CC to Granules adds no grains (%g vs %g)", (double)(el_ + er_), (double)e0);
+            SC_QUIET();
+            en_scion(0);
+            en_mod(0, EN_D_LEVEL, 0, 0);        /* depth 0: no change */
+            en_mod(0, EN_D_OFF, 0, 100);        /* Off: nothing */
+            en_note(0, 60, 100);
+            SC_RUN(6.0f);
+            CHECK(el_ + er_ > 0.9f * e0 && el_ + er_ < 1.1f * e0, "depth 0 or Off changed the voice (%g vs %g)", (double)(el_ + er_), (double)e0);
+            CHECK(!strcmp(EN_DEST_NAME[EN_D_GRAINS], "Grains") && !strcmp(EN_DEST_NAME[EN_D_OFF], "Off"), "destination names");
+        }
+
+        /* the pieces: the four Scion presets and their keys */
+        {
+            int16_t pr[P_NPARAMS];
+            uint16_t pl;
+            static const int ROOT[EN_NSCION_BED] = {2, 9, 5, 2};
+            for (k = 0; k < EN_NSCION_BED; k++) {
+                en_piece(k, pr, &pl);
+                CHECK(pr[P_ROOT] == ROOT[k] && pr[P_DENSITY] == 0 && pr[P_PULSE] == 0, "Scion piece %d recipe", k);
+                CHECK(pl == EN_MODE_POOL[pr[P_MODE]], "Scion piece %d pool", k);
+            }
+            CHECK(!strcmp(en_piece_name(0), "Garden") && !strcmp(en_piece_name(3), "Earth"), "Scion piece names");
+            CHECK(!strcmp(en_piece_name(4), "Posidonia") && !strcmp(en_piece_name(5), "Night") &&
+                      !strcmp(en_piece_name(6), "Lighthouse") && !strcmp(en_piece_name(7), "Shoreline"),
+                  "scene piece names");
+            for (k = EN_NSCION_BED; k < EN_NSCION_PRESETS; k++) {     /* the four with AMB-1's music keep it: loops and a pulse */
+                en_piece(k, pr, &pl);
+                CHECK(pr[P_DENSITY] > 0 && pr[P_TEMPO] > 0, "piece %d keeps AMB-1's music", k);
+            }
+            /* and every piece's voicing rings the Scion's note */
+            for (k = 0; k < EN_NSCION_PRESETS; k++) {
+                SC_QUIET();
+                en_scion(k);
+                en_note(2, 64, 100);
+                SC_RUN(1.0f);
+                CHECK(el_ + er_ > 1e-3f, "piece %d: a Scion note makes no sound", k);
+            }
+            en_piece(2, pr, &pl);
+            CHECK(pl == (1u | 1u << 4 | 1u << 7 | 1u << 11), "Flora is F maj7: F A C E");
+        }
+
+        /* the four-note Maj7 pool and the chromatic one: chords stay in the pool and the engine stays sane */
+        {
+            static const uint32_t POOLS[2] = {1u | 1u << 4 | 1u << 7 | 1u << 11, 0xFFFu};
+            int p2;
+            for (p2 = 0; p2 < 2; p2++) {
+                int bad_chord = 0, changes = 0, last = -1;
+                SC_QUIET();
+                en_set(P_PAD, 80);
+                en_set(P_ROOT, 5);
+                en_set(P_DRIFT, 0);
+                en_pool(POOLS[p2]);
+                en_regrow();
+                bad = 0;
+                peak = 0.0f;
+                for (k = 0; k < 360; k++) {
+                    run(1.0f);
+                    for (i = 0; i < 4; i++)
+                        if (!(POOLS[p2] >> ((en_chord[i] - 5 + 120) % 12) & 1u))
+                            bad_chord++;
+                    if (last != en_chord[0] + 128 * en_chord[1]) {
+                        changes++;
+                        last = en_chord[0] + 128 * en_chord[1];
+                    }
+                }
+                CHECK(!bad_chord, "pool %d: %d chord notes outside the pool", p2, bad_chord);
+                CHECK(!bad && peak > 0.001f && peak < 1.0f, "pool %d: bad %d peak %f", p2, bad, (double)peak);
+                CHECK(changes > 2, "pool %d: the chord never moves (%d)", p2, changes);
+            }
+        }
+        en_init();
+        en_play(1);
+    }
+#undef SC_QUIET
+#undef SC_RUN
+
     /* stop: the tails die away */
     for (i = 0; i < P_NPARAMS; i++)
         en_set(i, en_param_info(i)->def);

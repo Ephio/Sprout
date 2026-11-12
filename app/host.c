@@ -4,7 +4,7 @@
  * "expect", its command, a reboot and the screen reader's dump.
  *
  * AMB-1's checks: playing frozen view piece pool dirty sixteenths ext pad_level bass_level chordroot chordN loopnotes
- * parN battery (fm1-base's own: store_writes clocks_out midi_out peak_db_max peak_db_min). Its commands: storev3 N
+ * parN sccountN scnoteN ccnumN ccdestN ccamtN battery (fm1-base's own: store_writes clocks_out midi_out peak_db_max peak_db_min). Its commands: storev3 N
  * (the project as AMB-1 0.9 before the layer pages wrote it, format 3, the playing piece's Pad at N); battery N (the
  * battery read as N, plat.h's plat_battery: -1..4; "battery off" the simulator's own, full). */
 
@@ -43,6 +43,16 @@ int app_expect(const char *what, int *got)
         for (l = 0; l < EN_NLOOP; l++)
             for (i = 0; i < EN_LOOP_MAX; i++)
                 g += en_loop_note[l][i] >= 0;
+    } else if (!strncmp(what, "ccnum", 5)) {      /* ccnumN, ccdestN, ccamtN: the CC map of voice N */
+        g = proj.cc_num[atoi(what + 5) % EN_NSCION];
+    } else if (!strncmp(what, "ccdest", 6)) {
+        g = proj.cc_dest[atoi(what + 6) % EN_NSCION];
+    } else if (!strncmp(what, "ccamt", 5)) {
+        g = proj.cc_amt[atoi(what + 5) % EN_NSCION];
+    } else if (!strncmp(what, "sccount", 7)) {    /* sccountN: Scion notes received on voice N (channel N + 1) */
+        g = en_sc_count[atoi(what + 7) % EN_NSCION];
+    } else if (!strncmp(what, "scnote", 6)) {     /* scnoteN: voice N's last note */
+        g = en_sc_note[atoi(what + 6) % EN_NSCION];
     } else if (!strncmp(what, "par", 3))          /* parN: parameter N (amb.h P_*) */
         g = proj.par[atoi(what + 3)];
     else

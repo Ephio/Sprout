@@ -7,7 +7,7 @@
 #include "plat.h"
 #include "amb.h"
 
-#define APP_NAME "AMB-1"
+#define APP_NAME "Sprout"
 #define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
 #ifdef APP_VERSION                       /* a release build passes its own (tools/build.py --release) */
 #define EN_VERSION APP_VERSION
@@ -20,8 +20,8 @@
 enum { OBJ_PROJ, OBJ_PANEL, OBJ_NOBJ };
 #define APP_STORE_MAP {0xFC000u, 0xDC000u}
 #define PROJ_MAGIC 0x314F4E45u           /* "ENO1" */
-#define PROJ_FORMAT 4u                   /* 4: the bass's and the pulse's own settings (3 is carried over;
-                                          * older formats give the recipes) */
+#define PROJ_FORMAT 6u                   /* 6: the granulator's settings and the CC map (5, before them, gives the recipes;
+                                          * 3 is carried over as before) */
 #define NPIECES EN_NPIECES
 
 typedef struct {
@@ -37,7 +37,10 @@ typedef struct {
     uint8_t piece;                       /* which piece */
     uint8_t rsv0[2];
     slot_t slot[NPIECES];                /* every piece as it was left (Tune and MIDI out are global) */
-    uint8_t rsv[16];                     /* room to grow */
+    uint8_t cc_num[EN_NSCION];           /* the CC map, one for each Scion voice: the CC number, ... */
+    uint8_t cc_dest[EN_NSCION];          /* ... where it goes (amb.h EN_D_*), ... */
+    uint8_t cc_amt[EN_NSCION];           /* ... and how far (0..100) */
+    uint8_t rsv[1];                      /* room to grow */
 } project_t;
 
 extern project_t proj;

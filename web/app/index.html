@@ -135,7 +135,7 @@ const SPOKEN_NOTE = { "C#": "C sharp", "Eb": "E flat", "F#": "F sharp", "Ab": "A
 const CHORD_Q = { "": "major", m: "minor", 7: "7", M7: "major 7", m7: "minor 7", 6: "6", m6: "minor 6", add9: "add 9",
                   madd9: "minor add 9", aug: "augmented", dim: "diminished", dim7: "diminished 7", m7b5: "half diminished",
                   mM7: "minor major 7", sus2: "suspended 2", sus4: "suspended 4", "7sus4": "7 suspended 4", 5: "5" };
-const MODE_WORDS = { "Mixolyd.": "Mixolydian", "Pent maj": "pentatonic major", "Pent min": "pentatonic minor" };
+const MODE_WORDS = { "Mixolyd.": "Mixolydian", "Pent maj": "pentatonic major", "Pent min": "pentatonic minor", "Maj7": "major 7" };
 const sayNote = (n) => SPOKEN_NOTE[n] || n;
 function sayChord(name) {
   const m = /^([A-G][#b]?)(.*)$/.exec(name);
