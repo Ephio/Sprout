@@ -975,6 +975,72 @@ static void scene_shoreline(void)
     }
 }
 
+
+/* -------------------------------------------------------------- SPLASH --- */
+/* The first seconds after switching on: a seedling grows out of the dark, its leaves open, SPROUT fades in. It ends
+ * after six seconds, or at the first button, key or note of the Scion. */
+#ifndef APP_VERSION
+#define APP_VERSION "DEV"
+#endif
+
+static void sp_leaf(float bx, float by, float a, float len, uint16_t edge, uint16_t body)   /* a leaf, set out from the stem */
+{
+    bx += fm_cosf(a) * len * 0.16f;
+    by += fm_sinf(a) * len * 0.16f;
+    mo_poly(bx, by, a, len, 1.0f, edge);
+    mo_poly(bx, by, a, len, 0.86f, body);
+}
+
+static void splash_draw(float t)
+{
+    float g = fm_clampf(t / 2.4f, 0.0f, 1.0f), gl = fm_clampf((t - 0.9f) / 1.5f, 0.0f, 1.0f), g2 = fm_clampf((t - 1.5f) / 1.5f, 0.0f, 1.0f);
+    float ta = fm_clampf((t - 1.6f) / 0.9f, 0.0f, 1.0f), tx, ty, sway = fm_sinf(t * 1.3f) * 1.5f * g;
+    float sx[7], sy[7];
+    int i, k;
+    for (i = 0; i < 12; i++)                                            /* the dark, a little green at the bottom */
+        cv_rect(0, i * 12, 240, 12, mix(RGB(6, 12, 26), RGB(14, 38, 48), i * 16 / 11));
+    for (i = 0; i < 34; i++)                                            /* stars */
+        px_blend(ftoi(sc_hf((uint32_t)i * 3u) * 240.0f), ftoi(sc_hf((uint32_t)i * 3u + 1u) * 90.0f), RGB(220, 230, 255), 3u + (uint32_t)(i & 7));
+    for (i = 0; i < 26; i++) {                                          /* spores rising from the soil */
+        float p = sc_hf((uint32_t)i * 7u) * 130.0f - t * (5.0f + 9.0f * sc_hf((uint32_t)i)), y = p - fm_floorf(p / 130.0f) * 130.0f + 6.0f;
+        px_blend(ftoi(70.0f + sc_hf((uint32_t)i * 5u) * 100.0f + fm_sinf(t * 0.8f + (float)i) * 5.0f), ftoi(y), RGB(170, 240, 200), (uint32_t)(2.0f + 6.0f * ta) + (uint32_t)(i & 1));
+    }
+    ell(120, 144, 78, 13, RGB(44, 32, 30));                             /* the soil */
+    ell(120, 141, 62, 8, RGB(66, 48, 40));
+    for (i = 0; i < 14; i++)
+        px_blend(70 + ftoi(sc_hf((uint32_t)i * 9u) * 100.0f), 134 + ftoi(sc_hf((uint32_t)i * 9u + 1u) * 9.0f), RGB(98, 74, 60), 14u);
+    for (k = 0; k < 7; k++) {                                           /* the stem: a curve, growing */
+        float u = (float)k / 6.0f;
+        sx[k] = 120.0f + sway * u + 3.0f * fm_sinf(u * 2.6f);
+        sy[k] = 136.0f - 52.0f * g * u;
+    }
+    tx = sx[6];
+    ty = sy[6];
+    for (i = 0; i < 90; i++) {                                          /* a soft light round the tip */
+        float a = (float)i * (FM_TWO_PI / 90.0f);
+        px_blend(ftoi(tx + fm_cosf(a) * 12.0f), ftoi(ty + fm_sinf(a) * 12.0f), RGB(130, 235, 190), (uint32_t)(5.0f * gl) + 1u);
+        px_blend(ftoi(tx + fm_cosf(a) * 20.0f), ftoi(ty + fm_sinf(a) * 20.0f), RGB(130, 235, 190), (uint32_t)(3.0f * gl) + 0u);
+        px_blend(ftoi(tx + fm_cosf(a) * 30.0f), ftoi(ty + fm_sinf(a) * 30.0f), RGB(130, 235, 190), (uint32_t)(2.0f * gl));
+    }
+    for (k = 1; k < 7; k++)
+        ln_w(ftoi(sx[k - 1]), ftoi(sy[k - 1]), ftoi(sx[k]), ftoi(sy[k]), 3, RGB(98, 190, 108));
+    if (g2 > 0.0f) {                                                    /* the lower pair, smaller */
+        sp_leaf(sx[3], sy[3], -3.05f + sway * 0.02f, 26.0f * g2, RGB(34, 96, 66), RGB(86, 170, 98));
+        sp_leaf(sx[3], sy[3], -0.10f + sway * 0.02f, 26.0f * g2, RGB(34, 96, 66), RGB(86, 170, 98));
+    }
+    if (gl > 0.0f) {                                                    /* the top pair, opening */
+        sp_leaf(tx, ty, -2.80f - 0.10f * fm_sinf(t * 1.3f), 32.0f * gl, RGB(40, 112, 74), RGB(120, 214, 128));
+        sp_leaf(tx, ty, -0.34f + 0.10f * fm_sinf(t * 1.3f), 32.0f * gl, RGB(40, 112, 74), RGB(120, 214, 128));
+    }
+    cv_disc(ftoi(tx), ftoi(ty), 2, RGB(170, 245, 190));                 /* the bud */
+    if (ta > 0.0f) {                                                    /* the name, fading in */
+        const uint16_t bg = RGB(10, 20, 34);
+        text_c(120, 8, &FONT_L, "SPROUT", mix(bg, RGB(240, 250, 236), q16(ta)));
+        text_c(120, 44, &FONT_XS, "A POCKET SCION COMPANION", mix(bg, RGB(150, 214, 200), q16(ta)));
+        text_c(120, 128, &FONT_XS, "v" APP_VERSION, mix(bg, RGB(120, 150, 168), q16(ta)));
+    }
+}
+
 static void scene_draw(int piece)
 {
     sc_begin();
