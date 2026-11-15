@@ -70,6 +70,8 @@ static const char *const SCION_SCALE[SCION_SCALES] = {"D min pent", "A maj pent"
 static struct {
     uint8_t view;
     uint8_t mv;                        /* the CC map: the voice being set (0..4) */
+    uint8_t splash;                    /* the first seconds: the seedling (scenes.c), until a press, a note, or six seconds */
+    uint32_t splash_t0, splash_c;      /* when it began; the Scion's notes then (a new one ends it) */
     uint32_t btn, keys, btn_used;
     uint32_t enc_t[NE];
     uint8_t enc_run[NE];               /* detents in the current quick run, per knob (accel) */
@@ -942,6 +944,12 @@ static void draw_main(void)
                                         (uint32_t)en_playing << 17 | (uint32_t)proj.par[P_MODE] << 20), i;
     if (ui.frame % 3u)                           /* the garden moves slowly: 20 frames a second is plenty */
         return;
+    if (ui.splash) {
+        cv_begin(240, MAIN_H, RGB(6, 12, 26));
+        splash_draw((float)(plat_ms() - ui.splash_t0) * 0.001f);
+        cv_blit(0, MAIN_Y);
+        return;
+    }
     if (ui.help) {
         h = hash(0x48454C50u, ui.help);
         if (h != ui.sig[1]) {
@@ -1516,10 +1524,16 @@ void ui_init(void)
         en_play(1);                              /* it grows from the start */
     sp_tp.playing = 1;
     sp_tp.play_t = plat_ms();
+    ui.splash = 1;
+    ui.splash_t0 = plat_ms();
+    ui.splash_c = (uint32_t)en_sc_count[0] + en_sc_count[1] + en_sc_count[2] + en_sc_count[3] + en_sc_count[4];
 }
 
 void ui_frame(void)
 {
+    if (ui.splash && (plat_ms() - ui.splash_t0 > 6000u || plat_buttons() || plat_keys() ||
+                      (uint32_t)en_sc_count[0] + en_sc_count[1] + en_sc_count[2] + en_sc_count[3] + en_sc_count[4] != ui.splash_c))
+        ui.splash = 0;
     input();
     autosave();
     draw_header();
