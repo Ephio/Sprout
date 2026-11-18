@@ -3,6 +3,11 @@
 wait 500
 expect piece 0
 expect pool 0x4A9
+# it starts silent: nothing plays until PLAY, or a note
+wav silence.wav
+wait 1500
+wavstop
+expect peak_db_max -90
 wav scion.wav
 # Garden (D minor pentatonic): a note on each channel; the scale is not touched
 midi 90 3E 64
@@ -206,3 +211,13 @@ expect scnote2 64
 # GLO again is Setup
 tap GLO
 shot setup_again.png
+
+# the keys play their note on the voice shown, as if the Scion had sent it; SELECT picks the voice (the first at first)
+tapkey 0
+wait 100
+expect scnote0 53
+turn SELECT 2
+tapkey 7
+wait 100
+expect scnote2 60
+# and with HOME held SELECT is still the tempo

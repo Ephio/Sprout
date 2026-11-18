@@ -48,7 +48,7 @@ static struct {
     uint8_t note[EN_NSCION];
     float glow[EN_NSCION];
     float grow[EN_NSCION];                      /* Mycelium: how far each network has grown, 0.3 .. 1 */
-    float gmo;                                  /* Flora: how far the Monstera has grown, 0.2 .. 1 */
+    float tp, pe;                               /* Flora: the plant's own time (seconds into its life) and the notes' energy (0..1) */
     float flash, boltx;                         /* Lighthouse: the lightning's light, and where it struck */
     float dt, now, amb;                         /* the frame's seconds; a clock; the ambient spawn's timer */
     uint32_t last_ms, cnt;                      /* (cnt: the notes of the scene, for what happens every so often) */
@@ -85,7 +85,7 @@ static void sc_dots(void)
     int i;
     for (i = 0; i < EN_NSCION; i++) {
         int32_t x = 120 + (i - 2) * 12, y = SCN_H - 9;
-        cv_disc(x, y, 4, RGB(24, 24, 28));
+        cv_disc(x, y, i == ui.voice ? 5 : 4, i == ui.voice ? RGB(240, 244, 250) : RGB(24, 24, 28));   /* a ring round the voice the keys play */
         cv_disc(x, y, 3, mix(RGB(86, 86, 92), SC_DOT[i], q16(sc.glow[i])));
     }
 }
@@ -400,9 +400,15 @@ static void scene_mycelium(void)
 }
 
 /* -------------------------------------------------------------- FLORA --- */
-/* A Monstera in a pot by a window. Every note makes it grow: more leaves unfurl, a taller stem; the leaf of the
- * note's channel (a leaf belongs to channel i % 5) stirs and brightens, and dust rises in the light. With no notes it
- * slowly shrinks back to two leaves. */
+/* A Monstera in a pot by a window, living its whole life: a seedling, a leaf every nine seconds, each one unfurling,
+ * maturing, yellowing, letting go, falling to the floor, rotting there and disappearing; when the last one is gone the
+ * stem withers and it begins again from a seedling. The notes give it energy, which makes its time run faster (up to
+ * four times), so it grows and ages while it is played; the leaf of the note's channel (a leaf belongs to channel
+ * i % 5) stirs and brightens, and dust rises in the light. */
+#define MO_BIRTH 9.0f                            /* seconds between one leaf and the next */
+#define MO_LIFE 66.0f                            /* from birth: it yellows from 62% of it, lets go at 86% */
+#define MO_FALL 4.5f                             /* the fall, seconds */
+#define MO_ROT 12.0f                             /* the time on the floor, seconds */
 #define MO_N 9
 static const float MO_P[9][2] = {{0.0f, 0.0f},   {-0.10f, 0.12f}, {-0.06f, 0.30f}, {0.08f, 0.46f}, {0.30f, 0.54f},
                                  {0.55f, 0.50f}, {0.78f, 0.36f},  {0.95f, 0.14f},  {1.0f, 0.0f}};   /* half a leaf: (along, across) */
@@ -455,16 +461,25 @@ static void mo_leaf(float bx, float by, float a, float len, uint16_t body, uint1
         }
 }
 
+static float mo_stem_x(float hh)                /* the stem's curve, at a height above the soil */
+{
+    return 120.0f + 5.0f * fm_sinf(hh * (2.4f / 78.0f) + 0.4f) + 1.5f * fm_sinf(sc.now * 0.9f + hh * 0.04f) * hh * (1.0f / 78.0f);
+}
+
 static void scene_flora(void)
 {
     const uint16_t WALL = RGB(214, 224, 200);
-    float g, h, gs = sc_gsum(), sumf = 0.0f, stx[7], sty[7];
+    const float TP_END = 8.0f * MO_BIRTH + 0.86f * MO_LIFE + MO_FALL + MO_ROT;      /* the last leaf is gone */
+    float gs = sc_gsum(), sumf = 0.0f, h, w, sx[7], sy[7];
     int i, c, k;
     for (c = 0; c < EN_NSCION; c++)
         sumf += (float)sc.fresh[c];
-    sc.gmo = fm_clampf(sc.gmo + 0.05f * sumf - 0.005f * sc.dt, 0.2f, 1.0f);
-    g = sc.gmo;
-    h = 14.0f + 64.0f * g;                      /* the stem's height */
+    sc.pe = fm_clampf(sc.pe + 0.12f * sumf - 0.08f * sc.dt, 0.0f, 1.0f);
+    sc.tp += sc.dt * (1.0f + 3.0f * sc.pe);      /* the plant's own time: the notes speed it */
+    if (sc.tp > TP_END + 5.0f)                   /* all gone, the stem withered: a seedling again */
+        sc.tp = 0.0f;
+    w = fm_clampf(1.0f - (sc.tp - TP_END) / 5.0f, 0.0f, 1.0f);               /* the stem's life at the end */
+    h = (14.0f + 8.0f * fm_minf(8.0f, sc.tp * (1.0f / MO_BIRTH))) * (0.25f + 0.75f * w);
     cv_rect(0, 0, 240, 112, WALL);              /* the room: wall, wainscot, floor, window */
     cv_rect(0, 0, 240, 6, mix(WALL, RGB(150, 160, 140), 4));
     cv_rect(0, 90, 240, 22, RGB(196, 208, 182));
@@ -490,36 +505,61 @@ static void scene_flora(void)
     }
     cv_rect(101, 114, 38, 6, RGB(208, 114, 70));
     ell(120, 114, 16, 3, RGB(74, 50, 38));
-    for (k = 0; k < 7; k++) {                                           /* the stem: a curve, thick */
+    for (i = 0; i < MO_N; i++) {                                        /* the leaves on the floor: rotting, then gone */
+        float age = sc.tp - (float)i * MO_BIRTH - 0.86f * MO_LIFE - MO_FALL, hf = sc_hf((uint32_t)i * 7u + 3u), side = (i & 1) ? 1.0f : -1.0f;
+        float len = 40.0f - 2.2f * (float)i + 8.0f * hf, r, kk;
+        int32_t lx = ftoi(120.0f + side * (38.0f + 40.0f * hf)), ly = ftoi(124.0f + 14.0f * hf);
+        if (age < 0.0f || age >= MO_ROT)
+            continue;
+        r = age * (1.0f / MO_ROT);
+        kk = 1.0f - 0.7f * r * r;
+        ell(lx, ly, ftoi(len * 0.5f * kk) + 1, ftoi(len * 0.2f * kk) + 1, mix(RGB(150, 92, 44), RGB(62, 46, 32), q16(r)));
+        ln(lx - ftoi(len * 0.45f * kk), ly, lx + ftoi(len * 0.45f * kk), ly, mix(RGB(190, 130, 70), RGB(80, 60, 40), q16(r)), 12u);
+    }
+    for (k = 0; k < 7; k++) {                                           /* the stem: a curve, thick, withering at the end */
         float t = (float)k / 6.0f;
-        stx[k] = 120.0f + 5.0f * fm_sinf(t * 2.4f + 0.4f) + 1.5f * fm_sinf(sc.now * 0.9f + t * 3.0f) * t;
-        sty[k] = 113.0f - h * t;
+        sy[k] = 113.0f - h * t;
+        sx[k] = mo_stem_x(h * t);
     }
     for (k = 1; k < 7; k++)
-        ln_w(ftoi(stx[k - 1]), ftoi(sty[k - 1]), ftoi(stx[k]), ftoi(sty[k]), 3, RGB(84, 134, 72));
+        ln_w(ftoi(sx[k - 1]), ftoi(sy[k - 1]), ftoi(sx[k]), ftoi(sy[k]), 3, mix(RGB(120, 84, 50), RGB(84, 134, 72), q16(w)));
     for (i = 0; i < MO_N; i++) {                                        /* its leaves, the oldest below */
-        float s = fm_clampf(g * (float)MO_N - (float)i * 0.85f, 0.0f, 1.0f), f = ((float)i + 0.6f) / ((float)MO_N + 0.6f);
-        float hf = sc_hf((uint32_t)i * 7u + 3u), side = (i & 1) ? 1.0f : -1.0f, gl = sc.glow[i % 5];
-        float t = f * 6.0f, nx, ny, pa, pl, bx, by, a, len;
-        int ki = (int)t, fl;
+        float age = sc.tp - (float)i * MO_BIRTH, hf = sc_hf((uint32_t)i * 7u + 3u), side = (i & 1) ? 1.0f : -1.0f, gl = sc.glow[i % 5];
+        float s = fm_clampf(age * (1.0f / 7.0f), 0.0f, 1.0f), yl = fm_clampf((age - 0.62f * MO_LIFE) / (0.24f * MO_LIFE), 0.0f, 1.0f);
+        float hn = 10.0f + 8.0f * (float)i, nx = mo_stem_x(hn), ny = 113.0f - hn, pa, pl, bx, by, a, len, tau;
         uint16_t body, edge, rib;
-        if (s <= 0.0f)
+        int fl;
+        if (age <= 0.0f || (w < 1.0f && sc.tp > TP_END))
             continue;
-        if (ki > 5)
-            ki = 5;
-        nx = stx[ki] + (stx[ki + 1] - stx[ki]) * (t - (float)ki);
-        ny = sty[ki] + (sty[ki + 1] - sty[ki]) * (t - (float)ki);
+        tau = age - 0.86f * MO_LIFE;                                    /* seconds since it let go */
+        if (tau >= MO_FALL)
+            continue;                                                   /* it is on the floor, or gone */
         pa = -1.5708f + side * (0.55f + 0.5f * hf);
         pl = (6.0f + 16.0f * hf) * s;
         bx = nx + fm_cosf(pa) * pl;
         by = ny + fm_sinf(pa) * pl;
-        a = pa + side * 0.25f + gl * 0.35f * fm_sinf(sc.now * 13.0f + (float)i) + 0.04f * fm_sinf(sc.now * 0.8f + (float)i);
+        a = pa + side * 0.25f + (tau < 0.0f ? gl * 0.35f * fm_sinf(sc.now * 13.0f + (float)i) + 0.04f * fm_sinf(sc.now * 0.8f + (float)i) : 0.0f);
         len = (40.0f - 2.2f * (float)i + 8.0f * hf) * s;
-        fl = q16(gl) / 3;
-        body = mix(mix(RGB(34, 112, 66), RGB(92, 172, 98), i * 16 / MO_N), RGB(170, 232, 150), fl);
-        edge = mix(RGB(22, 78, 50), RGB(70, 140, 80), fl);
-        rib = mix(RGB(150, 204, 130), RGB(235, 255, 220), fl);
-        ln_w(ftoi(nx), ftoi(ny), ftoi(bx), ftoi(by), 2, RGB(70, 124, 64));
+        fl = tau < 0.0f ? q16(gl) / 3 : 0;
+        body = mix(RGB(34, 112, 66), RGB(92, 172, 98), i * 16 / MO_N);
+        edge = RGB(22, 78, 50);
+        rib = RGB(150, 204, 130);
+        if (yl > 0.0f) {                                                /* yellowing, then brown */
+            body = yl < 0.5f ? mix(body, RGB(222, 184, 64), q16(yl * 2.0f)) : mix(RGB(222, 184, 64), RGB(160, 96, 46), q16(yl * 2.0f - 1.0f));
+            edge = mix(edge, RGB(120, 70, 34), q16(yl));
+            rib = mix(rib, RGB(200, 160, 90), q16(yl));
+        }
+        body = mix(body, RGB(170, 232, 150), fl);
+        rib = mix(rib, RGB(235, 255, 220), fl);
+        if (tau >= 0.0f) {                                              /* falling: it drifts to the floor, turning */
+            float u = tau * (1.0f / MO_FALL), lx = 120.0f + side * (38.0f + 40.0f * hf), ly = 124.0f + 14.0f * hf;
+            float e = u * fm_sqrtf(u);
+            bx = bx + (lx - bx) * u + side * fm_sinf(u * 9.0f) * 7.0f * (1.0f - u);
+            by = by + (ly - by) * e;
+            a += side * u * 3.2f;
+        } else {
+            ln_w(ftoi(nx), ftoi(ny), ftoi(bx), ftoi(by), 2, mix(RGB(150, 120, 60), RGB(70, 124, 64), q16(1.0f - yl)));
+        }
         mo_leaf(bx, by, a, len, body, edge, rib, WALL);
     }
     for (c = 0; c < EN_NSCION; c++)                                     /* a note: dust rising in the light */
@@ -711,7 +751,7 @@ static void scene_night(void)
     scr_draw(0.28f, 26.0f, 11.0f, RGB(190, 206, 236));
     for (x = 0; x < 240; x += 4)                                        /* the bank, in front */
         cv_rect(x, 129 + ftoi(3.0f * fm_sinf((float)x * 0.2f)), 4, 20, RGB(8, 14, 20));
-    wind = 0.55f * fm_sinf(sc.now * 0.7f) + 0.35f * fm_sinf(sc.now * 1.9f + 1.0f) + 0.8f * fm_maxf(0.0f, fm_sinf(sc.now * 0.31f)) + 1.2f * gs;
+    wind = 0.55f * fm_sinf(sc.now * 0.7f) + 0.35f * fm_sinf(sc.now * 1.9f + 1.0f) + 0.8f * fm_maxf(0.0f, fm_sinf(sc.now * 0.31f));   /* its own: the notes do not move the reeds */
     for (i = 0; i < 54; i++) {                                          /* the reeds, bent by the wind and by the notes */
         float bx = i < 27 ? sc_hf((uint32_t)i * 3u + 1u) * 76.0f : 164.0f + sc_hf((uint32_t)i * 3u + 1u) * 80.0f;
         float hgt = 42.0f + 52.0f * sc_hf((uint32_t)i * 3u + 2u), ph = sc_hf((uint32_t)i * 3u + 3u) * FM_TWO_PI, px = bx, py = 140.0f;
@@ -731,20 +771,20 @@ static void scene_night(void)
         if (sc.fresh[c]) {
             int n;
             scr_add(20.0f + 200.0f * sc_rand(), 100.0f + 30.0f * sc_rand());
-            for (n = 0; n < 3 * sc.fresh[c]; n++)
+            for (n = 0; n < 2 * sc.fresh[c]; n++)                       /* the notes bring fireflies: more of them as it is played */
                 scp_add(sc_rand() > 0.5f ? 4.0f + 70.0f * sc_rand() : 170.0f + 70.0f * sc_rand(), 126.0f, (sc_rand() - 0.5f) * 8.0f, -(6.0f + 5.0f * sc_rand()), 6.0f + 3.0f * sc_rand(), 4, 0);
         }
     sc.amb -= sc.dt;
     if (sc.amb <= 0.0f) {                                               /* and now and then a few by themselves */
         int n;
-        sc.amb = 2.5f + 3.5f * sc_rand();
-        for (n = 0; n < 2; n++)
+        sc.amb = 4.0f + 5.0f * sc_rand();
+        for (n = 0; n < 1; n++)
             scp_add(sc_rand() > 0.5f ? 4.0f + 70.0f * sc_rand() : 170.0f + 70.0f * sc_rand(), 126.0f, (sc_rand() - 0.5f) * 8.0f, -(6.0f + 5.0f * sc_rand()), 7.0f, 4, 0);
     }
     scp_step(200.0f, 14.0f, 0.0f);
     for (i = 0; i < SC_NP; i++)
         if (scp[i].life > 0.0f) {                                       /* a firefly: it blinks, with a halo */
-            float b = 0.5f + 0.5f * fm_sinf(scp[i].ph * 2.5f), fade = scp[i].life < 1.5f ? scp[i].life * (1.0f / 1.5f) : 1.0f;
+            float b = (0.5f + 0.5f * fm_sinf(scp[i].ph * 2.5f)) * (0.4f + 0.6f * gs), fade = scp[i].life < 1.5f ? scp[i].life * (1.0f / 1.5f) : 1.0f;   /* brighter while it is played */
             uint32_t a = (uint32_t)(b * fade * 7.0f) + 1u;
             for (j = 0; j < 8; j++)
                 px_blend(ftoi(scp[i].x + fm_cosf((float)j * 0.785f) * 2.6f), ftoi(scp[i].y + fm_sinf((float)j * 0.785f) * 2.6f), RGB(200, 250, 110), a / 2u + 1u);

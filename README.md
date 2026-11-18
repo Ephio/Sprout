@@ -1,75 +1,74 @@
 # Sprout
 
-**Sprout** is a Pocket Scion companion for the M-VAVE FM-1, derived from AMB-1 by Charles Vestal (itself built on fm1-base
-and felucca-bsp, from Felucca by Leo Kuroshita). Eight scenes answer the notes and CCs that the Instruo Pocket Scion
-sends over MIDI; see `docs/SCION.md`. This version by Paolo Pino. MPL-2.0, as AMB-1. What follows is AMB-1's own README.
+**A Pocket Scion companion for the M-VAVE FM-1.** Derived from [AMB-1](https://github.com/charlesvestal/fm1-amb) by Charles Vestal.
+
+[![beta](https://img.shields.io/badge/status-beta-orange)](#status) [![licence](https://img.shields.io/badge/licence-MPL--2.0-blue)](LICENSE)
+
+<img src="docs/img/splash.png" width="240" alt="Sprout start screen: a seedling growing in the dark, with the title SPROUT">
+
+Sprout turns the FM-1 into an instrument for the [Instruo Pocket Scion](https://www.instruomodular.com/), which plays MIDI notes from the signals of plants, fungi and soil. Each of the Scion's five voices (MIDI channels 1–5) rings an FM bell on the FM-1, and **eight animated scenes** answer every note. Underneath, AMB-1's generative ambient music can play as a quiet bed — or not at all: Sprout starts silent.
+
+**Project page:** <https://ephio.github.io/Sprout/> · **Download:** [Releases](https://github.com/Ephio/sprout/releases) · **Documentation:** [docs/SCION.md](docs/SCION.md) (Italian)
+
+## The eight scenes
+
+Switch with PRESETS, or with a MIDI Program Change (0–7). The first four are made for the Pocket Scion's four presets; the other four keep AMB-1's generative music.
+
+<table>
+<tr>
+<td align="center"><img src="docs/img/scene-1-garden.png" width="240" alt="Garden"><br><b>1 Garden</b><br>D minor pentatonic · cherry blossom, pond</td>
+<td align="center"><img src="docs/img/scene-2-mycelium.png" width="240" alt="Mycelium"><br><b>2 Mycelium</b><br>A major pentatonic · five fungal networks</td>
+<td align="center"><img src="docs/img/scene-3-flora.png" width="240" alt="Flora"><br><b>3 Flora</b><br>F major 7 · a Monstera living its whole life</td>
+<td align="center"><img src="docs/img/scene-4-earth.png" width="240" alt="Earth"><br><b>4 Earth</b><br>chromatic · a turning globe, raindrops</td>
+</tr>
+<tr>
+<td align="center"><img src="docs/img/scene-5-posidonia.png" width="240" alt="Posidonia"><br><b>5 Posidonia</b><br>a seagrass meadow, broken sunbeams</td>
+<td align="center"><img src="docs/img/scene-6-night.png" width="240" alt="Night"><br><b>6 Night</b><br>a river by moonlight, fireflies</td>
+<td align="center"><img src="docs/img/scene-7-lighthouse.png" width="240" alt="Lighthouse"><br><b>7 Lighthouse</b><br>a storm, the beam sweeping</td>
+<td align="center"><img src="docs/img/scene-8-shoreline.png" width="240" alt="Shoreline"><br><b>8 Shoreline</b><br>sunset from the sea wall</td>
+</tr>
+</table>
+
+## Using it with the Pocket Scion
+
+Connect the Scion to the FM-1 with a TRS MIDI cable (or USB). In the Pocket SCION Controller app choose **Multi Channel**, voices on channels 1–5.
+
+| Message | Effect |
+| --- | --- |
+| Note On, ch 1–5 | rings an FM bell with that channel's colour and stereo position; the scene answers |
+| Control Change | through the **CC map** (by default CC 71–75 set the tone of voices 1–5) |
+| Program Change 0–7 | picks the scene |
+| Clock · Start · Stop | as in AMB-1 |
+
+The FM-1's keys play notes on the voice shown (SELECT picks the voice, 1–5); a ring marks it under the scene.
+
+### New pages
+
+<table>
+<tr>
+<td width="50%"><img src="docs/img/page-granulator.png" width="240" alt="The granulator page"><br><b>Granulator</b> (SEQ): Granules, Size, Reverse, Random. It replays the last 1.4 s of the sound in grains.</td>
+<td width="50%"><img src="docs/img/page-ccmap.png" width="240" alt="The CC map page"><br><b>CC map</b> (GLO, twice): for each Scion voice, which CC, where it goes (the voice's tone, level, decay, pan, pitch, or an effect) and how far.</td>
+</tr>
+</table>
+
+## Status
+
+**Beta.** Tried in the simulator and in the online FM-1 emulator. The behaviour of the Pocket Scion's CCs on a real FM-1 has **not** been verified yet. Unofficial firmware, used at your own risk: the installer also lets you reinstall the original M-VAVE firmware.
+
+Planned: scales chosen on the FM-1 (so the Scion can send all twelve notes), an effects page (delay, reverb, wobble, granules, low pass), LFOs on the CCs, per-voice instruments, MIDI channels per voice.
+
+## Building
+
+Sprout builds like AMB-1: see [BUILDING.md](BUILDING.md). The GitHub workflow in `.github/workflows/release.yml` builds the firmware (`Actions → Build and attest firmware → Run workflow`); the package contains `amb.fwsc` (the build's internal file name, kept from AMB-1).
+
+AMB-1's own manual describes the pages and knobs Sprout inherits: <https://charlesvestal.github.io/fm1-amb/manual/>.
+
+## Credits and licence
+
+By **Paolo Pino**, derived from **AMB-1** by Charles Vestal, built on **fm1-base** and **felucca-bsp**, from **Felucca** by Leo Kuroshita (Hügelton Instruments). MPL-2.0, as AMB-1 — see [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md). Not affiliated with or endorsed by M-VAVE or Instruo; product names belong to their owners.
 
 ---
 
-# AMB-1 for the M-VAVE FM-1
+## In italiano
 
-AMB-1 turns the M-VAVE FM-1 into a generative ambient machine, inspired by Brian Eno's
-*Music for Airports*. It plays itself from the moment it's switched on: breathing voices, soft
-bells on tape loops of unequal length, a gliding bass and quiet Euclidean percussion, all through
-a tape echo, a long tape loop and a plate reverb. You don't perform it, you tend it: pick a piece
-and a scale, take notes out, put them back, and let it grow.
-
-![AMB-1's screen: the garden](docs/img/screen-garden.png) ![Voices](docs/img/screen-voices.png) ![Frozen](docs/img/screen-frozen.png)
-
-- **Try it in your browser** (no FM-1 needed): <https://charlesvestal.github.io/fm1-amb/emu/>
-- **Install it** (Chrome or Edge, with the FM-1 plugged in): <https://charlesvestal.github.io/fm1-amb/install/>
-- **Read the manual**: <https://charlesvestal.github.io/fm1-amb/manual/> (source: [docs/MANUAL.md](docs/MANUAL.md))
-- **Download the firmware file**: [releases](https://github.com/charlesvestal/fm1-amb/releases)
-
-Installing it is at your own risk, though it's hard to get stuck: the web installer can put
-M-VAVE's own firmware back, and an FM-1 that fails to start twice comes up in a safe mode the
-installer can reach.
-
-## In short
-
-| | |
-|---|---|
-| Keys | The scale: each key adds its note or takes it out |
-| PLAY · REC · EDIT | Grow / rest · freeze · the next chord |
-| HOME · ENV · ARP · LFO · SEQ · FX · GLO | The pages: Garden, Pad, Bells, Bass, Pulse, Space, Setup; KNOB 1–4 set their values, a layer's level on KNOB 1 |
-| SELECT | The previous or next page; with HOME held, the tempo |
-| ALGORITHM · PRESETS | The mode · the piece (eight of them) |
-| OCT− / OCT+ | The bells' octave |
-| SAVE | Saves; held, puts the piece back to its recipe |
-
-Hold any button for a second and a card says what it does.
-
-AMB-1 also tells the [FM-1 Screen Reader](https://charlesvestal.github.io/fm1-reader/) what its screen
-shows, over USB: the page and its knobs, a knob's value as it turns, the piece, the chord as it moves,
-and what each button did.
-
-The [manual](https://charlesvestal.github.io/fm1-amb/manual/) has the rest.
-
-## Building and testing
-
-AMB-1 is an app on [fm1-base](https://github.com/charlesvestal/fm1-base) (`base/`, a git submodule); clone with
-`--recursive`. The toolchain and prerequisites are in [BUILDING.md](BUILDING.md):
-
-```
-sh tests/run_tests.sh                                  # the instrument, the app in a simulator, the web builds
-./build.sh                                             # app/build/amb.fwsc
-python3 base/tools/fm1_install.py app/build/amb.fwsc   # install it over USB
-```
-
-`app/build/host/amb_host SCRIPT OUTDIR` runs the whole app on a computer from a script
-(`tests/scenarios/*.amb`), with audio and screenshots coming out. `./build.sh --web` builds the same code for the
-browser (the emulator); `web/app/build.sh` builds the engine alone into a web app for phone and desktop.
-
-## Credits
-
-The idea comes from Brian Eno's generative music: *Music for Airports*' tape loops of unequal
-length, and the echo chain of *Discreet Music*. The reverb is Jon Dattorro's plate ("Effect Design,
-Part 1", JAES 1997), as in [FoMni-1](https://github.com/charlesvestal/fm1-fomni); the Euclidean
-rhythms are Godfried Toussaint's reading of Bjorklund's algorithm. AMB-1 is built on
-[fm1-base](https://github.com/charlesvestal/fm1-base) and [felucca-bsp](https://github.com/hugelton/felucca-bsp),
-from [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita (Hügelton Instruments). The idea of running
-FM-1 firmware in the browser comes from [Groove OS](https://www.groove-os.com/). MPL-2.0 (0.9 and earlier:
-GPL-3.0-only); see [LICENSING.md](LICENSING.md).
-
-M-VAVE and FM-1 are trademarks of their owners. AMB-1 is not affiliated with M-VAVE, Brian Eno or
-Hügelton Instruments.
+**Sprout** è un firmware beta per l'M-VAVE FM-1 che ascolta il Pocket Scion di Instruo: le cinque voci dello Scion (canali MIDI 1–5) suonano campane FM, e otto scene animate rispondono a ogni nota. Parte in silenzio; il letto ambient generativo di AMB-1 si avvia con PLAY. Le pagine nuove sono il granulatore (tasto SEQ) e la mappa dei CC (tasto GLO premuto due volte). Documentazione: [docs/SCION.md](docs/SCION.md). Pagina del progetto: <https://ephio.github.io/Sprout/>.

@@ -3,11 +3,11 @@
 /* AMB-1 UI: the panel and the screen. Part of the unity build (after gfx.c and project.c); the host
  * simulator includes it too.
  *
- *   keys           the scale: each key adds or removes its note from the pool (the root stays)
+ *   keys           play their note on the voice shown (SELECT picks the voice, 1..5), like a note from the Scion
  *   PLAY           the garden grows / rests        ARP   the next chord, now
  *   REC            FREEZE: the chord holds, the reverb rings on    OCT- / OCT+   the bells' octave
  *   ENV            the pad's colour: Rhodes / Voices (lit: Voices), kept with the piece
- *   SELECT tempo   ALGORITHM mode (loads a pool)   PRESETS the piece (Root is on the Setup page)
+ *   SELECT the voice (1..5) the keys play; with HOME held, the tempo   ALGORITHM mode (loads a pool)   PRESETS the piece
  *   Every piece is a scene answering the Pocket Scion (MIDI in: scenes.c, amb.h)
  *   HOME SEQ FX SEL GLO   the pages: LAYERS, MOTION, SPACE, TONE, SETUP (EDIT steps through them)
  *   KNOB 1-4       the page's four values
@@ -15,7 +15,7 @@
  *                  held 1.5 s: the piece back to its recipe */
 #include "fastmath.h"
 
-/* the pages, one a layer (a button each); SELECT steps through them in this order */
+/* the pages, one a layer (a button each; GLO twice is the CC map) */
 enum { V_GARDEN, V_PAD, V_BELLS, V_BASS, V_GRAINS, V_SPACE, V_SETUP, V_CCMAP, NVIEWS };
 /* (the SEQ button's page was the pulse: it is the granulator now; the GLO button's second press, the CC map) */
 static const char *const VIEW_NAME[NVIEWS] = {"Garden", "Pad", "Bells", "Bass", "Grains", "Space", "Setup", "CC map"};
@@ -70,6 +70,7 @@ static const char *const SCION_SCALE[SCION_SCALES] = {"D min pent", "A maj pent"
 static struct {
     uint8_t view;
     uint8_t mv;                        /* the CC map: the voice being set (0..4) */
+    uint8_t voice;                     /* the Scion's voice the keys play, and SELECT picks (0..4) */
     uint8_t splash;                    /* the first seconds: the seedling (scenes.c), until a press, a note, or six seconds */
     uint32_t splash_t0, splash_c;      /* when it began; the Scion's notes then (a new one ends it) */
     uint32_t btn, keys, btn_used;
@@ -287,23 +288,10 @@ static void turn(int role, int k, int32_t e)
     knob_set(k, knob_get(k) + accel(role, e, hi - lo));
 }
 
-/* ------------------------------------------------------------- the pool --- */
-static void toggle_note(int pc)                 /* a key: its note in or out of the scale */
+/* ------------------------------------------------------------- the keys --- */
+static void key_note(int i)                     /* a key plays its note on the voice shown, as if the Scion had sent it */
 {
-    int rel = (pc - proj.par[P_ROOT] + 12) % 12;
-    uint32_t p = proj.pool ^ (1u << rel);
-    if (rel == 0) {
-        warn("THE ROOT STAYS", "(SETUP)");
-        return;
-    }
-    if (pool_count(p) < 3) {
-        warn("3 NOTES", "AT LEAST");
-        return;
-    }
-    proj.pool = (uint16_t)p;
-    en_pool(p);
-    say(p >> rel & 1u ? "ADDED" : "REMOVED", EN_NOTE_NAME[pc]);
-    mark_dirty();
+    en_note(ui.voice, 53 + i, 100);              /* key 0 is F3 */
 }
 
 static void set_mode(int m)
@@ -460,11 +448,11 @@ static void input(void)
     ui.keys = keys;
     for (i = 0; i < NKEYS; i++)
         if ((ch & keys) >> i & 1u)
-            toggle_note((int)((5u + i) % 12u));  /* key 0 is F3 */
+            key_note((int)i);
     if (btn || keys || ch)
         ui.act_t = plat_ms();
     midi_in();
-    if ((e = plat_enc(EN_SELECT)) != 0) {        /* SELECT: the pages; with HOME held, the tempo */
+    if ((e = plat_enc(EN_SELECT)) != 0) {        /* SELECT: the voice the keys play; with HOME held, the tempo */
         if (btn >> B_HOME & 1u) {
             turn(EN_SELECT, P_TEMPO, e);
             ui.btn_used |= 1u << B_HOME;
@@ -476,10 +464,15 @@ static void input(void)
                 itoa_u((uint32_t)proj.par[P_TEMPO], t);
                 say("TEMPO", t);
             }
-        } else {
-            int v = (int)ui.view + (e > 0 ? 1 : -1);
-            if (v >= 0 && v < NVIEWS)
-                set_view(v);
+        } else {                                 /* the voice the keys play: the Scion's five */
+            int v = (int)ui.voice + (e > 0 ? 1 : -1);
+            if (v >= 0 && v < EN_NSCION) {
+                char t[4];
+                ui.voice = (uint8_t)v;
+                t[0] = (char)('1' + v);
+                t[1] = 0;
+                say("VOICE", t);
+            }
         }
         ui.turn_t = plat_ms();
     }
@@ -906,7 +899,7 @@ static int help_lines(int b, const char *l[HELP_LINES])
     int n = 0;
 #define L(t) (l[n++] = (t))
     switch (b) {
-    case B_HOME: L("THE GARDEN"); L("TEMPO, EVOLVE, MOTION, DRIFT"); L("+ SELECT: TEMPO"); break;
+    case B_HOME: L("THE SCENE"); L("TEMPO, EVOLVE, MOTION, DRIFT"); L("SELECT: THE VOICE THE KEYS PLAY"); L("+ HOME: TEMPO"); break;
     case B_ENV: L("THE PAD"); L("LEVEL, SWELL, BRIGHT,"); L("COLOUR"); break;
     case B_ARP: L("THE BELLS"); L("LEVEL, DENSITY, TONE,"); L("OCTAVE"); break;
     case B_LFO: L("THE BASS"); L("LEVEL, OCTAVE, GLIDE, FIFTH"); break;
@@ -1520,9 +1513,7 @@ void ui_init(void)
     memset(&ui, 0, sizeof ui);
     ui.touched = -1;
     lcd_fill(0, 0, 240, 240, K_BG);
-    if (!en_playing)
-        en_play(1);                              /* it grows from the start */
-    sp_tp.playing = 1;
+    sp_tp.playing = en_playing;                  /* it starts silent: PLAY starts the garden (the Scion's notes ring at once) */
     sp_tp.play_t = plat_ms();
     ui.splash = 1;
     ui.splash_t0 = plat_ms();

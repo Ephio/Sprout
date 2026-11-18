@@ -7,6 +7,18 @@ rinominare il file scaricato in `sprout.fwsc` senza problemi.
 Sprout risponde via MIDI agli impulsi dell'**Instruo Pocket Scion**.
 Gli **otto pezzi** (manopola PRESETS) sono otto scene grafiche, e **tutte** rispondono al Pocket Scion.
 
+## Schermata iniziale
+
+All'accensione un germoglio cresce nel buio, si aprono le foglie e compare il titolo SPROUT con il numero di versione. Finisce
+da sola dopo sei secondi, oppure al primo tasto premuto o alla prima nota del Scion.
+
+## Avvio, tasti e voci
+
+* **All'accensione Sprout è silenzioso**: il letto generativo parte solo con PLAY. Le note del Scion suonano subito.
+* **I tasti della tastiera suonano note** sulla voce selezionata, come se le mandasse lo Scion (anche la scena risponde). La voce
+  (1–5) si sceglie con la manopola **SELECT**; un anello la segna sotto la scena. Con HOME premuto, SELECT è ancora il tempo.
+  I tasti non decidono più la scala.
+
 ## Collegamento
 
 Pocket Scion → FM-1 con cavo MIDI TRS (o USB). Nell'app *Pocket SCION Controller* usa **MULTI CHANNEL** con le voci sui
@@ -57,10 +69,10 @@ Ogni scena reagisce alle note; in basso cinque pallini si accendono per canale (
 | --- | --- | --- | --- |
 | 1 | **Garden** | letto discreto in Re pentatonica minore | ciliegio giapponese fitto con laghetto e lanterna: i fiori di un ramo si accendono, cadono petali, un'onda sul laghetto |
 | 2 | **Mycelium** | letto in La pentatonica maggiore | cinque reti di micelio, una per canale: crescono e lampeggiano |
-| 3 | **Flora** | letto in Fa maggiore 7 (F A C E) | una Monstera che **cresce con le note** (nuove foglie, stelo più alto); la foglia del canale si muove; senza note torna piano a due foglie; la luce della finestra e il polline salgono |
+| 3 | **Flora** | letto in Fa maggiore 7 (F A C E) | una Monstera che vive **tutto il suo ciclo**: germoglio, una foglia nuova ogni 9 s, ogni foglia si apre, matura, ingiallisce, cade, marcisce sul pavimento e scompare; quando l'ultima è andata lo stelo appassisce e si ricomincia da un germoglio. Le note le danno energia (il tempo della pianta corre fino a 4 volte più veloce); la foglia del canale si muove; sale polline nella luce |
 | 4 | **Earth** | letto cromatico, gocce corte | globo che ruota (più veloce con il Tempo); ogni nota è una goccia di pioggia |
 | 5 | **Posidonia** | musica di Departures (AMB-1) | prateria di posidonia che ondeggia, raggi di sole spezzettati; una nota agita le alghe, accende un raggio, libera una bolla o un pesce |
-| 6 | **Night** | musica di Voices (AMB-1) | riva di un fiume al chiaro di luna, canne al vento; una nota è una folata, si alzano lucciole, increspature |
+| 6 | **Night** | musica di Voices (AMB-1) | riva di un fiume al chiaro di luna; le canne ondeggiano al vento per conto loro; ogni nota porta lucciole (più note, più lucciole, e brillano di più) e increspature |
 | 7 | **Lighthouse** | musica di Afternoon (AMB-1) | tempesta su una costa nordica, il faro con il suo fascio; una nota è un'onda che si infrange, ogni tanto un lampo |
 | 8 | **Shoreline** | musica di Shoreline (AMB-1) | tramonto dal muretto sulla spiaggia: due innamorati di spalle (spostati a destra), il camioncino dei gelati a sinistra; una nota fa brillare il mare e accende una lampadina del camioncino (una per canale), passa un gabbiano, ogni tanto sale un cuore |
 
